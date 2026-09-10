@@ -1254,3 +1254,73 @@ body.focus-mode[data-emotion="none"]::before { opacity: 0; }
     .emotion-btn-label { display: none; }
     .emotion-btn-arrow { display: none; }
 }
+
+/* ══════════════════════════════════════════════════
+   Adaptive Message & Posture Guidance Banner
+   ══════════════════════════════════════════════════ */
+
+.adaptation-banner {
+    margin-top: 1.25rem;
+    padding: 1rem 1.25rem;
+    border-radius: var(--radius-card);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    transition: all 0.4s ease;
+}
+
+.adaptation-msg-block {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.adaptation-icon {
+    font-size: 1.75rem;
+    line-height: 1;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.adaptation-texts {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.adaptation-message {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.4;
+}
+
+.adaptation-tip {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+/* Banner accent themes */
+.adaptation-banner.banner-engaged {
+    border-color: rgba(34, 197, 94, 0.45);
+    background: rgba(6, 78, 59, 0.35);
+}
+.adaptation-banner.banner-bored {
+    border-color: rgba(96, 165, 250, 0.45);
+    background: rgba(30, 58, 95, 0.35);
+}
+.adaptation-banner.banner-confused {
+    border-color: rgba(168, 85, 247, 0.45);
+    background: rgba(46, 16, 101, 0.35);
+}
+.adaptation-banner.banner-frustrated {
+    border-color: rgba(239, 68, 68, 0.45);
+    background: rgba(127, 29, 29, 0.35);
+}
+
+/* Applied to #emotion-panel — border accent per 4 learning states */
+.state-engaged    { border-color: rgba(34, 197, 94, 0.5) !important; box-shadow: 0 0 15px rgba(34, 197, 94, 0.15); }
+.state-bored      { border-color: rgba(96, 165, 250, 0.5) !important; box-shadow: 0 0 15px rgba(96, 165, 250, 0.15); }
+.state-confused   { border-color: rgba(168, 85, 247, 0.5) !important; box-shadow: 0 0 15px rgba(168, 85, 247, 0.15); }
+.state-frustrated { border-color: rgba(239, 68, 68, 0.5) !important; box-shadow: 0 0 15px rgba(239, 68, 68, 0.15); }
+

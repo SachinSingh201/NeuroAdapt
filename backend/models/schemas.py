@@ -48,12 +48,20 @@ class EmotionPredictionRequest(BaseModel):
 
 
 class EmotionPredictionResponse(BaseModel):
-    emotion: str
-    learning_state: str
-    confidence: float
-    source: str
-    processing_time_ms: int
-    adaptation: Dict[str, Any]
+    emotion: str = Field(..., description="Facial emotion: engaged, bored, confused, frustrated")
+    posture: str = Field(..., description="Detected posture: upright, leaning_forward, leaning_backward, slouched, leaning_left, leaning_right")
+    learning_state: str = Field(..., description="Canonical learning state: ENGAGED, BORED, CONFUSED, FRUSTRATED")
+    confidence: float = Field(..., description="Facial emotion confidence (0.0 to 1.0)")
+    posture_confidence: float = Field(..., description="Posture confidence (0.0 to 1.0)")
+    theme: str = Field(..., description="Theme identifier (e.g. positive, stimulate, help, calm)")
+    background: str = Field(..., description="CSS background token / class")
+    message: str = Field(..., description="Adaptive learner feedback message")
+    posture_tip: str = Field(..., description="Ergonomic / posture guidance tip")
+    action: str = Field(..., description="Recommended adaptation action")
+    assistance: str = Field(..., description="Assistance intensity level: none, low, medium, high")
+    source: str = Field(..., description="Prediction source (e.g. combined, local, cloud, manual)")
+    processing_time_ms: int = Field(..., description="Inference latency in milliseconds")
+    adaptation: Dict[str, Any] = Field(default_factory=dict, description="Complete adaptation payload")
     error: Optional[str] = None
 
 

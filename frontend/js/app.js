@@ -413,10 +413,12 @@ function updateCurrentStateDisplay(state, confidence, source, processingTime) {
 
     // Show low confidence warning
     const confidenceText = document.getElementById("confidence-value");
-    if (confidence < 0.55) {
-        confidenceText.style.color = "#e53e3e";
-    } else {
-        confidenceText.style.color = var(--primary-color);
+    if (confidenceText) {
+        if (confidence < 0.55) {
+            confidenceText.style.color = "#e53e3e";
+        } else {
+            confidenceText.style.color = "var(--primary-color, #22c55e)";
+        }
     }
 }
 

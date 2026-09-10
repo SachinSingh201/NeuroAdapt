@@ -113,7 +113,7 @@ class CloudEmotionService:
             top_confidence = float(preds_block[top_class]["confidence"])
 
             return {
-                "emotion": top_class,
+                "posture": top_class,
                 "confidence": top_confidence,
             }
 
@@ -123,9 +123,9 @@ class CloudEmotionService:
     @staticmethod
     def normalize_response(data: dict):
         """
-        Return (emotion, confidence) from a successfully parsed dict.
+        Return (posture, confidence) from a successfully parsed dict.
         Returns (None, 0.0) on error.
         """
         if not data or "error" in data:
             return None, 0.0
-        return data.get("emotion"), float(data.get("confidence", 0.0))
+        return data.get("posture"), float(data.get("confidence", 0.0))

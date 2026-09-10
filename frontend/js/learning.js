@@ -1,14 +1,15 @@
 /**
- * EduMotion - Learning Page Module (Posture Detection)
+ * EduMotion - Learning Page Module (Combined CNN Emotion + Online Posture)
  *
  * LAYOUT:
- *  - #youtube-iframe  → LEFT section (ML video, always visible, never touched)
- *  - #webcam-video    → RIGHT panel  (independent webcam stream)
+ *  - #youtube-iframe  → LEFT section (ML video & lesson content)
+ *  - #webcam-video    → RIGHT panel  (compact single stream detection monitor)
  *
- * FLOW:
- *  Clicking "Start Camera" opens the webcam AND auto-starts posture detection
- *  after a 1-second warmup (gives the browser time to set videoWidth).
- *  Every 5 seconds a JPEG frame is captured and POSTed to /api/emotion/predict-base64.
+ * 4 SUPPORTED EMOTIONS:
+ *  - engaged
+ *  - bored
+ *  - confused
+ *  - frustrated
  */
 
 // ─────────────────────────────────────────────────────────────
@@ -16,9 +17,10 @@
 // ─────────────────────────────────────────────────────────────
 
 const LessonConfig = {
-    processingInterval:  5000,   // ms between posture checks (5 seconds)
-    videoWarmupDelay:    1200,   // ms to wait after camera opens before first capture
-    maxVideoWaitMs:      8000,   // max ms to wait for videoWidth > 0
+    processingInterval:  2500,   // ms between prediction checks
+    videoWarmupDelay:    1000,   // ms to wait after camera opens before first capture
+    maxVideoWaitMs:      8000,   // max ms to wait for video ready
+    historyWindowSize:   5,      // rolling window size for temporal smoothing
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -28,22 +30,22 @@ const LessonConfig = {
 const LearningState = {
     isCameraActive:       false,
     isProcessing:         false,
-    isProcessingRequest:  false,   // prevent concurrent API calls
+    isProcessingRequest:  false,   // prevent concurrent in-flight requests
     videoStream:          null,
     processingIntervalId: null,
-    postureHistory:       [],      // rolling window of {state, confidence}
-    frameCount:           0,       // for debug logging
+    predictionHistory:    [],      // rolling window of { emotion, posture, learning_state, confidence }
+    frameCount:           0,
 };
 
 // ─────────────────────────────────────────────────────────────
-// Posture display config
+// UI Display Constants (Strictly 4 Emotions & 6 Postures)
 // ─────────────────────────────────────────────────────────────
 
-const POSTURE_ICONS = {
-    ENGAGED:  "🎯",
-    BORED:    "😑",
-    CONFUSED: "🤔",
-    FRUSTRATED: "😤",
+const EMOTION_DISPLAY = {
+    engaged:    { icon: "🎯", label: "Engaged" },
+    bored:      { icon: "😑", label: "Bored" },
+    confused:   { icon: "🤔", label: "Confused" },
+    frustrated: { icon: "😤", label: "Frustrated" },
 };
 
 const POSTURE_RAW_LABELS = {
@@ -64,56 +66,29 @@ const POSTURE_ICONS_BY_NAME = {
     slouched:         "🛋️",
 };
 
-const POSTURE_ALERTS = {
-    ENGAGED:  { msg: "✓ Engaged — keep it up!",                                           cls: "alert-focused"  },
-    BORED:    { msg: "⚠ Looks like you're losing interest — want to take a break?",               cls: "alert-tired"    },
-    CONFUSED: { msg: "🤔 Confused — let's review the current topic.",           cls: "alert-confused" },
-    FRUSTRATED: { msg: "😟 Frustrated — take a deep breath and relax.",        cls: "alert-stressed" },
-};
-
-// ─────────────────────────────────────────────────────────────
-// Emotion Theme System
-// Maps backend learning states → 4 frontend display emotions.
-// Only these 4 exist per the backend: engaged, bored, confused, frustrated.
-// ─────────────────────────────────────────────────────────────
-
-/**
- * Maps backend learning states to frontend emotion keys.
- * Each state gets its own distinct color theme for maximum visibility.
- * Keys drive body[data-emotion] CSS variable and dropdown indicator.
- */
-const LEARNING_STATE_TO_EMOTION = {
-    ENGAGED:    "engaged",
-    BORED:      "bored",
-    CONFUSED:   "confused",
-    FRUSTRATED: "frustrated",
-};
-
-// Icons & display names for all emotion keys
-const EMOTION_DISPLAY = {
-    engaged:    { icon: "🎯", label: "Engaged" },
-    bored:      { icon: "😑", label: "Bored" },
-    confused:   { icon: "🤔", label: "Confused" },
-    frustrated: { icon: "😤", label: "Frustrated" },
-};
-
-/** State for the manual emotion override (null = auto mode) */
+/** Manual emotion override state (null = auto detection active) */
 let manualEmotionOverride = null;
 
+// ─────────────────────────────────────────────────────────────
+// Theme Adaptation (Whole-Page Background)
+// ─────────────────────────────────────────────────────────────
+
 /**
- * Apply an emotion theme to the whole page.
- * Sets body[data-emotion] which is picked up by CSS.
- * If manualEmotionOverride is set, it takes precedence.
- * @param {string|null} autoEmotion - derived from backend learning state, or null to clear
+ * Applies the emotion theme to the entire page background.
+ * Sets body[data-emotion] which is styled via CSS.
  */
 function applyEmotionTheme(autoEmotion) {
-    const emotion = manualEmotionOverride || autoEmotion || "none";
-    document.body.setAttribute("data-emotion", emotion);
-    updateEmotionButtonIndicator(emotion, manualEmotionOverride !== null);
+    const rawEmotion = manualEmotionOverride || autoEmotion || "none";
+    const emotion = rawEmotion.toLowerCase();
+    
+    // Ensure only the 4 allowed emotions or 'none' are applied
+    const validEmotion = EMOTION_DISPLAY[emotion] ? emotion : "none";
+    document.body.setAttribute("data-emotion", validEmotion);
+    updateEmotionButtonIndicator(validEmotion, manualEmotionOverride !== null);
 }
 
 /**
- * Update the navbar Emotion button to show the active emotion.
+ * Updates the navbar Emotion button label and icon.
  */
 function updateEmotionButtonIndicator(emotion, isManual) {
     const btn      = document.getElementById("emotion-toggle-btn");
@@ -141,100 +116,92 @@ function updateEmotionButtonIndicator(emotion, isManual) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Init
+// Initialization
 // ─────────────────────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", () => {
     setupCameraControls();
-    setupEventListeners();
     setupEmotionDropdown();
     setupYouTubePlayer();
     setupFocusMode();
-    console.log("[EduMotion] Dashboard ready. Click 'Start Camera' to begin posture detection.");
+    console.log("[EduMotion] Dashboard initialized with CNN Emotion + Posture pipeline.");
 });
 
 // ─────────────────────────────────────────────────────────────
-// Wire buttons
+// Camera Controls & Lifecycle
 // ─────────────────────────────────────────────────────────────
 
 function setupCameraControls() {
-    // "Start Camera" button → starts camera AND auto detection
-    const startCameraBtn = document.getElementById("start-processing");
-    const stopCameraBtn  = document.getElementById("stop-processing");
-    if (startCameraBtn) startCameraBtn.addEventListener("click", startCameraAndDetection);
-    if (stopCameraBtn)  stopCameraBtn.addEventListener("click",  stopCamera);
-
-    // "START AUTO DETECTION" button (posture monitor card)
     const startAutoBtn = document.getElementById("start-auto");
     const stopAutoBtn  = document.getElementById("stop-auto");
+
     if (startAutoBtn) startAutoBtn.addEventListener("click", startAutoDetection);
     if (stopAutoBtn)  stopAutoBtn.addEventListener("click",  stopAutoDetection);
-
-    // Duplicate buttons (manual card)
-    const startAuto2 = document.getElementById("start-auto-2");
-    const stopAuto2  = document.getElementById("stop-auto-2");
-    if (startAuto2) startAuto2.addEventListener("click", startAutoDetection);
-    if (stopAuto2)  stopAuto2.addEventListener("click",  stopAutoDetection);
 }
 
-// ─────────────────────────────────────────────────────────────
-// startCameraAndDetection
-// Opens webcam AND auto-starts detection after warmup.
-// This is the MAIN entry point for the "Start Camera" button.
-// ─────────────────────────────────────────────────────────────
+/**
+ * Starts the webcam stream and auto detection loop.
+ */
+async function startAutoDetection() {
+    if (LearningState.isProcessing) return;
 
-async function startCameraAndDetection() {
-    setStatus("Opening camera…");
-    await startCamera();
-    if (!LearningState.isCameraActive) return;
+    setStatus("Starting camera...");
+    const started = await startCamera();
+    if (!started) return;
 
-    // Wait for the video to actually report dimensions (videoWidth > 0)
-    setStatus("Warming up camera…");
+    setStatus("Warming up camera sensor...");
     const ready = await waitForVideoReady();
     if (!ready) {
-        setStatus("Camera stream not ready. Try stopping and restarting.");
-        console.warn("[EduMotion] Video stream never became ready.");
+        setStatus("Camera stream ready timeout. Please restart.");
+        console.warn("[EduMotion] Video stream ready timeout.");
         return;
     }
 
-    setStatus("Camera ready ✓ — starting posture detection…");
-    await startAutoDetection();
+    LearningState.isProcessing = true;
+    setElDisplay("start-auto", false);
+    setElDisplay("stop-auto",  true);
+
+    setStatus("Active — analyzing emotion & posture...");
+    console.log(`[EduMotion] Auto detection active. Interval: ${LessonConfig.processingInterval}ms`);
+
+    startProcessingLoop();
 }
 
-// ─────────────────────────────────────────────────────────────
-// waitForVideoReady — polls until videoWidth > 0 or timeout
-// ─────────────────────────────────────────────────────────────
+/**
+ * Stops auto detection and terminates the webcam stream.
+ */
+function stopAutoDetection() {
+    LearningState.isProcessing = false;
 
-function waitForVideoReady() {
-    return new Promise((resolve) => {
-        const video = document.getElementById("webcam-video");
-        if (!video) { resolve(false); return; }
-        if (video.videoWidth > 0) { resolve(true); return; }
+    if (LearningState.processingIntervalId) {
+        clearInterval(LearningState.processingIntervalId);
+        LearningState.processingIntervalId = null;
+    }
 
-        const deadline = Date.now() + LessonConfig.maxVideoWaitMs;
-        const poll = setInterval(() => {
-            if (video.videoWidth > 0) {
-                clearInterval(poll);
-                console.log(`[EduMotion] Video ready: ${video.videoWidth}×${video.videoHeight}`);
-                resolve(true);
-            } else if (Date.now() > deadline) {
-                clearInterval(poll);
-                resolve(false);
-            }
-        }, 100);
-    });
+    stopCameraStream();
+
+    setElDisplay("start-auto", true);
+    setElDisplay("stop-auto",  false);
+
+    resetDisplay();
+    setStatus("");
+    console.log("[EduMotion] Auto detection stopped and webcam stream closed.");
 }
 
-// ─────────────────────────────────────────────────────────────
-// Start Camera — opens webcam stream only
-// ─────────────────────────────────────────────────────────────
-
+/**
+ * Opens webcam stream and attaches to the video element.
+ */
 async function startCamera() {
-    if (LearningState.isCameraActive) return;
+    if (LearningState.isCameraActive) return true;
 
     try {
         const stream = await navigator.mediaDevices.getUserMedia({
-            video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
+            video: {
+                width: { ideal: 640 },
+                height: { ideal: 480 },
+                facingMode: "user"
+            },
+            audio: false,
         });
 
         LearningState.videoStream    = stream;
@@ -247,34 +214,35 @@ async function startCamera() {
         if (webcamVideo) {
             webcamVideo.srcObject = stream;
             webcamVideo.style.display = "block";
+            try {
+                await webcamVideo.play();
+            } catch (playErr) {
+                console.warn("[EduMotion] video.play() warning:", playErr);
+            }
         }
         if (placeholder) placeholder.style.display = "none";
         if (badge)       badge.style.display        = "inline-block";
 
-        setElDisplay("start-processing", false);
-        setElDisplay("stop-processing",  true);
-
-        console.log("[EduMotion] Camera opened successfully.");
-
+        console.log("[EduMotion] Camera stream acquired.");
+        return true;
     } catch (err) {
-        console.error("[EduMotion] Camera access denied:", err);
-        setStatus("❌ Camera permission denied. Allow access in browser settings.");
-        alert(
-            "Camera permission is required for posture detection.\n" +
-            "Please allow camera access in your browser settings and refresh."
-        );
+        console.error("[EduMotion] Camera access error:", err);
+        setStatus("Camera permission denied or camera not found.");
+        alert("Camera permission is required for emotion & posture detection. Please allow camera access in your browser settings.");
+        return false;
     }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Stop Camera — stops webcam AND processing
-// ─────────────────────────────────────────────────────────────
-
-function stopCamera() {
-    stopAutoDetection();   // stop AI first
-
+/**
+ * Stops all tracks in the active MediaStream.
+ */
+function stopCameraStream() {
     if (LearningState.videoStream) {
-        LearningState.videoStream.getTracks().forEach((t) => t.stop());
+        try {
+            LearningState.videoStream.getTracks().forEach((track) => track.stop());
+        } catch (e) {
+            console.warn("[EduMotion] Error stopping tracks:", e);
+        }
         LearningState.videoStream = null;
     }
     LearningState.isCameraActive = false;
@@ -284,79 +252,44 @@ function stopCamera() {
     const placeholder = document.getElementById("camera-placeholder");
     const badge       = document.getElementById("camera-badge");
 
-    if (webcamVideo) { webcamVideo.srcObject = null; webcamVideo.style.display = "none"; }
+    if (webcamVideo) {
+        webcamVideo.srcObject = null;
+        webcamVideo.style.display = "none";
+    }
     if (placeholder) placeholder.style.display = "flex";
     if (badge)       badge.style.display        = "none";
+}
 
-    setElDisplay("start-processing", true);
-    setElDisplay("stop-processing",  false);
+/**
+ * Polls until the video element has non-zero dimensions.
+ */
+function waitForVideoReady() {
+    return new Promise((resolve) => {
+        const video = document.getElementById("webcam-video");
+        if (!video) return resolve(false);
+        if (video.videoWidth > 0) return resolve(true);
 
-    resetPostureDisplay();
-    setStatus("");
-    console.log("[EduMotion] Camera stopped.");
+        const deadline = Date.now() + LessonConfig.maxVideoWaitMs;
+        const poll = setInterval(() => {
+            if (video.videoWidth > 0) {
+                clearInterval(poll);
+                resolve(true);
+            } else if (Date.now() > deadline) {
+                clearInterval(poll);
+                resolve(false);
+            }
+        }, 100);
+    });
 }
 
 // ─────────────────────────────────────────────────────────────
-// Start Auto Detection
-// ─────────────────────────────────────────────────────────────
-
-async function startAutoDetection() {
-    if (LearningState.isProcessing) return;
-
-    // If camera not active, open it first
-    if (!LearningState.isCameraActive) {
-        await startCamera();
-        if (!LearningState.isCameraActive) return;
-        await waitForVideoReady();
-    }
-
-    LearningState.isProcessing = true;
-
-    setElDisplay("start-auto",   false);
-    setElDisplay("stop-auto",    true);
-    setElDisplay("start-auto-2", false);
-    setElDisplay("stop-auto-2",  true);
-
-    setStatus("🔄 Posture detection active — capturing every 5 seconds…");
-    console.log(`[EduMotion] Auto detection started. Interval: ${LessonConfig.processingInterval}ms`);
-
-    startProcessingLoop();
-}
-
-// ─────────────────────────────────────────────────────────────
-// Stop Auto Detection — keeps camera ON
-// ─────────────────────────────────────────────────────────────
-
-function stopAutoDetection() {
-    if (!LearningState.isProcessing && !LearningState.processingIntervalId) return;
-
-    LearningState.isProcessing = false;
-
-    if (LearningState.processingIntervalId) {
-        clearInterval(LearningState.processingIntervalId);
-        LearningState.processingIntervalId = null;
-    }
-
-    setElDisplay("start-auto",   true);
-    setElDisplay("stop-auto",    false);
-    setElDisplay("start-auto-2", true);
-    setElDisplay("stop-auto-2",  false);
-
-    if (LearningState.isCameraActive) {
-        setStatus("⏸ Detection paused. Camera still active.");
-    }
-    console.log("[EduMotion] Auto detection stopped.");
-}
-
-// ─────────────────────────────────────────────────────────────
-// Processing loop — fires every 5 seconds
+// Frame Capture & Processing Loop
 // ─────────────────────────────────────────────────────────────
 
 function startProcessingLoop() {
-    // First capture after warmup delay, then every interval
     setTimeout(() => {
         if (!LearningState.isProcessing) return;
-        processNextFrame();   // immediate first capture
+        processNextFrame();
 
         LearningState.processingIntervalId = setInterval(
             processNextFrame,
@@ -365,57 +298,34 @@ function startProcessingLoop() {
     }, LessonConfig.videoWarmupDelay);
 }
 
-// ─────────────────────────────────────────────────────────────
-// Capture frame and send to backend
-// ─────────────────────────────────────────────────────────────
-
 async function processNextFrame() {
-    if (!LearningState.isProcessing)       return;
-    if (LearningState.isProcessingRequest) return;   // skip if previous request still in flight
+    if (!LearningState.isProcessing || LearningState.isProcessingRequest) return;
 
     const video = document.getElementById("webcam-video");
-    if (!video) { console.warn("[EduMotion] #webcam-video not found"); return; }
-    if (!video.srcObject) { console.warn("[EduMotion] No srcObject on webcam"); return; }
-    if (video.videoWidth === 0) {
-        console.warn("[EduMotion] videoWidth still 0, skipping frame");
-        return;
-    }
+    if (!video || !video.srcObject || video.videoWidth === 0) return;
 
     LearningState.isProcessingRequest = true;
     LearningState.frameCount++;
     const frameNum = LearningState.frameCount;
 
-    console.log(`[EduMotion] ▶ Capturing frame #${frameNum} (${video.videoWidth}×${video.videoHeight}) → sending to backend…`);
-    setStatus(`📷 Capturing frame #${frameNum}…`);
-
     try {
-        // Draw frame to hidden canvas
         const canvas = document.getElementById("capture-canvas");
-        if (!canvas) { console.error("[EduMotion] #capture-canvas not found"); return; }
+        if (!canvas) return;
 
         canvas.width  = video.videoWidth;
         canvas.height = video.videoHeight;
         const ctx = canvas.getContext("2d");
-        if (!ctx) { console.error("[EduMotion] Could not get canvas context"); return; }
+        if (!ctx) return;
         ctx.drawImage(video, 0, 0);
 
-        // JPEG at 80% quality — good balance of size vs quality
         const base64Image = canvas.toDataURL("image/jpeg", 0.80);
-        const approxKB    = Math.round(base64Image.length * 0.75 / 1024);
-        console.log(`[EduMotion]   Image size: ~${approxKB} KB — POSTing to /api/emotion/predict-base64`);
-
         await sendFrameToBackend(base64Image, frameNum);
-
     } catch (err) {
-        console.error(`[EduMotion] Frame #${frameNum} error:`, err);
+        console.error(`[EduMotion] Frame #${frameNum} processing error:`, err);
     } finally {
         LearningState.isProcessingRequest = false;
     }
 }
-
-// ─────────────────────────────────────────────────────────────
-// POST to backend
-// ─────────────────────────────────────────────────────────────
 
 async function sendFrameToBackend(base64Image, frameNum) {
     const t0 = performance.now();
@@ -431,174 +341,181 @@ async function sendFrameToBackend(base64Image, frameNum) {
 
         if (!response.ok) {
             const errText = await response.text();
-            console.error(`[EduMotion] Backend returned HTTP ${response.status}: ${errText}`);
-            setStatus(`❌ Backend error: HTTP ${response.status}`);
+            console.error(`[EduMotion] HTTP ${response.status}: ${errText}`);
+            setStatus(`Backend error (HTTP ${response.status})`);
             return;
         }
 
         const result = await response.json();
-        console.log(`[EduMotion] ✅ Frame #${frameNum} response in ${elapsed}ms:`, result);
-        setStatus(`✅ Frame #${frameNum} processed (${elapsed}ms) — ${result.learning_state || result.emotion || "?"}`);
-
-        updatePostureUI(result);
-
+        updateDetectionUI(result);
+        setStatus(`Frame #${frameNum} evaluated (${elapsed}ms)`);
     } catch (err) {
         console.error(`[EduMotion] Network error on frame #${frameNum}:`, err);
-        setStatus(`❌ Network error — is the backend running?`);
+        setStatus("Network error connecting to backend");
     }
 }
 
 // ─────────────────────────────────────────────────────────────
-// UI updates
+// Temporal Smoothing & UI Update
 // ─────────────────────────────────────────────────────────────
 
-function updatePostureUI(result) {
-    const rawPosture    = result.emotion        || "upright";
-    const confidence    = result.confidence     || 0;
-    const learningState = (result.learning_state || "CALM").toUpperCase();
-    const source        = result.source         || "none";
+function updateDetectionUI(result) {
+    const rawEmotion = (result.emotion || "engaged").toLowerCase();
+    const rawPosture = (result.posture || "upright").toLowerCase();
+    const confidence = Number(result.confidence || 0);
+    const postureConf = Number(result.posture_confidence || 0);
+    const avgConf    = postureConf > 0 ? (confidence + postureConf) / 2 : confidence;
 
-    updatePostureHistory(learningState, confidence);
-    const stableState = getStablePosture();
+    // Push into rolling window
+    LearningState.predictionHistory.push({
+        emotion: rawEmotion,
+        posture: rawPosture,
+        confidence: avgConf,
+        ts: Date.now(),
+    });
 
-    updateStateDisplay(stableState, rawPosture, confidence, source);
-    applyPostureAdaptation(stableState, confidence);
-    updateEngagementBar(stableState, confidence);
-    showPostureAlert(stableState);
+    if (LearningState.predictionHistory.length > LessonConfig.historyWindowSize) {
+        LearningState.predictionHistory = LearningState.predictionHistory.slice(-LessonConfig.historyWindowSize);
+    }
 
-    console.log(`[EduMotion]   Stable state: ${stableState} | raw: ${rawPosture} | conf: ${Math.round(confidence * 100)}% | src: ${source}`);
+    // Get smoothed stable prediction from backend history
+    const stable = getStablePrediction();
+
+    // Automatically clear temporary manual preview override as soon as backend detection arrives
+    if (manualEmotionOverride !== null) {
+        console.log(`[EduMotion] Live backend detection received (${stable.emotion}) — clearing temporary manual preview.`);
+        manualEmotionOverride = null;
+
+        const optionBtns = document.querySelectorAll(".emotion-option[data-emotion]");
+        optionBtns.forEach((b) => b.classList.remove("active"));
+
+        const modeEl = document.getElementById("mode-indicator");
+        if (modeEl) {
+            modeEl.textContent = "AUTO";
+            modeEl.className   = "mode-indicator auto";
+        }
+    }
+
+    // Update Monitor UI with backend source of truth
+    updateStateDisplay(stable.emotion, stable.posture, confidence, postureConf);
+
+    // Apply whole-page theme derived from backend detection
+    applyEmotionTheme(stable.emotion);
+
+    // Display adaptive message and posture tip from backend CNN response
+    showAdaptationBanner(result.message, result.posture_tip, stable.emotion);
 }
 
-function updateStateDisplay(state, rawPosture, confidence, source) {
-    const stateEl         = document.getElementById("current-state");
-    const confidenceEl    = document.getElementById("confidence-value");
-    const rawLabelEl      = document.getElementById("raw-posture-label");
-    const modeEl          = document.getElementById("mode-indicator");
-    const postureTextEl   = document.getElementById("posture-text");
-    const postureBadgeEl  = document.getElementById("posture-badge");
-    const postureIconEl   = document.getElementById("posture-icon");
+/**
+ * Calculates majority emotion & posture from rolling history.
+ */
+function getStablePrediction() {
+    const hist = LearningState.predictionHistory;
+    if (!hist.length) return { emotion: "engaged", posture: "upright" };
 
-    const icon = POSTURE_ICONS[state] || "😐";
-    const rawClean = (rawPosture || "upright").toLowerCase().trim();
-    const formattedPosture = POSTURE_RAW_LABELS[rawClean] || rawClean.replace(/_/g, " ");
-    const postureIcon = POSTURE_ICONS_BY_NAME[rawClean] || POSTURE_ICONS[state] || "🧍";
+    const emotionCounts = {};
+    const postureCounts = {};
 
-    if (stateEl)      stateEl.textContent = `${icon} ${state}`;
-    if (confidenceEl) {
-        confidenceEl.textContent = `${Math.round(confidence * 100)}%`;
-        confidenceEl.style.color = confidence < 0.40 ? "#ef4444" : "#22c55e";
+    hist.forEach((item) => {
+        emotionCounts[item.emotion] = (emotionCounts[item.emotion] || 0) + 1;
+        postureCounts[item.posture] = (postureCounts[item.posture] || 0) + 1;
+    });
+
+    const stableEmotion = Object.entries(emotionCounts).sort((a, b) => b[1] - a[1])[0][0];
+    const stablePosture = Object.entries(postureCounts).sort((a, b) => b[1] - a[1])[0][0];
+
+    return { emotion: stableEmotion, posture: stablePosture };
+}
+
+function updateStateDisplay(emotion, posture, emotionConf, postureConf) {
+    const stateEl        = document.getElementById("current-state");
+    const confEl         = document.getElementById("confidence-value");
+    const rawLabelEl     = document.getElementById("raw-posture-label");
+    const modeEl         = document.getElementById("mode-indicator");
+    const postureTextEl  = document.getElementById("posture-text");
+    const postureBadgeEl = document.getElementById("posture-badge");
+    const postureIconEl  = document.getElementById("posture-icon");
+    const panel          = document.getElementById("emotion-panel");
+
+    const emotionInfo = EMOTION_DISPLAY[emotion] || EMOTION_DISPLAY.engaged;
+    const formattedPosture = POSTURE_RAW_LABELS[posture] || posture.replace(/_/g, " ");
+    const postureIcon = POSTURE_ICONS_BY_NAME[posture] || "🧍";
+
+    if (stateEl) stateEl.textContent = `${emotionInfo.icon} ${emotionInfo.label}`;
+    if (rawLabelEl) rawLabelEl.textContent = formattedPosture;
+
+    if (confEl) {
+        const confPct = Math.round(emotionConf * 100);
+        confEl.textContent = `${confPct}%`;
+        confEl.style.color = confPct >= 50 ? "#22c55e" : "#f59e0b";
     }
-    if (rawLabelEl)    rawLabelEl.textContent = formattedPosture;
+
     if (postureTextEl) postureTextEl.textContent = formattedPosture;
     if (postureBadgeEl) {
-        postureBadgeEl.textContent = rawClean.toUpperCase().replace(/_/g, " ");
-        postureBadgeEl.className = `posture-badge badge-${rawClean.replace(/_/g, "-")}`;
+        postureBadgeEl.textContent = posture.toUpperCase().replace(/_/g, " ");
+        postureBadgeEl.className = `posture-badge badge-${posture.replace(/_/g, "-")}`;
     }
     if (postureIconEl) postureIconEl.textContent = postureIcon;
 
-    if (modeEl) {
-        modeEl.textContent = source === "cloud" ? "CLOUD AI" : source === "local" ? "LOCAL CNN" : source.toUpperCase();
+    if (modeEl && !manualEmotionOverride) {
+        modeEl.textContent = "AUTO";
         modeEl.className   = "mode-indicator auto";
     }
-}
 
-function applyPostureAdaptation(state, confidence) {
-    const panel = document.getElementById("emotion-panel");
-    if (!panel) return;
-    panel.classList.remove("state-engaged","state-bored","state-confused","state-frustrated");
-    if (state && confidence >= 0.30) {
-        panel.classList.add(`state-${state.toLowerCase()}`);
-    }
-    // Apply full-page emotion background (only when not manually overridden)
-    if (!manualEmotionOverride) {
-        const autoEmotion = LEARNING_STATE_TO_EMOTION[state] || null;
-        applyEmotionTheme(autoEmotion);
+    if (panel) {
+        panel.classList.remove("state-engaged", "state-bored", "state-confused", "state-frustrated");
+        panel.classList.add(`state-${emotion}`);
     }
 }
 
-function updateEngagementBar(state, confidence) {
-    const bar = document.getElementById("engagement-fill");
-    const pct = document.getElementById("engagement-pct");
+function showAdaptationBanner(message, postureTip, emotion) {
+    const banner = document.getElementById("adaptation-banner");
+    const msgEl  = document.getElementById("adaptation-message");
+    const tipEl  = document.getElementById("adaptation-tip");
+    const iconEl = document.getElementById("adaptation-icon");
 
-    const qualityMap = { ENGAGED:90, BORED:35, CONFUSED:50, FRUSTRATED:20 };
-    const colorMap   = { ENGAGED:"#22c55e", BORED:"#fb923c", CONFUSED:"#f59e0b", FRUSTRATED:"#ef4444" };
+    if (!banner || !msgEl || !tipEl) return;
 
-    const quality = Math.round((qualityMap[state] || 60) * (confidence > 0.30 ? 1 : 0.6));
-    if (bar) { bar.style.width = `${quality}%`; bar.style.backgroundColor = colorMap[state] || "#60a5fa"; }
-    if (pct) pct.textContent = `${quality}%`;
+    const info = EMOTION_DISPLAY[emotion] || EMOTION_DISPLAY.engaged;
+    if (iconEl) iconEl.textContent = info.icon;
+    msgEl.textContent = message || "Maintaining focus.";
+    tipEl.textContent = postureTip ? `Tip: ${postureTip}` : "";
+    banner.style.display = "block";
+    banner.className = `adaptation-banner banner-${emotion}`;
 }
 
-function showPostureAlert(state) {
-    const alertEl = document.getElementById("posture-alert");
-    if (!alertEl) return;
-    const cfg = POSTURE_ALERTS[state] || POSTURE_ALERTS.CALM;
-    alertEl.textContent  = cfg.msg;
-    alertEl.className    = "";
-    alertEl.classList.add(cfg.cls);
-    alertEl.style.display = "block";
-}
+function resetDisplay() {
+    const stateEl        = document.getElementById("current-state");
+    const confEl         = document.getElementById("confidence-value");
+    const rawLabelEl     = document.getElementById("raw-posture-label");
+    const postureTextEl  = document.getElementById("posture-text");
+    const postureBadgeEl = document.getElementById("posture-badge");
+    const postureIconEl  = document.getElementById("posture-icon");
+    const banner         = document.getElementById("adaptation-banner");
+    const panel          = document.getElementById("emotion-panel");
 
-function resetPostureDisplay() {
-    const stateEl         = document.getElementById("current-state");
-    const confidenceEl    = document.getElementById("confidence-value");
-    const rawLabelEl      = document.getElementById("raw-posture-label");
-    const alertEl         = document.getElementById("posture-alert");
-    const bar             = document.getElementById("engagement-fill");
-    const pct             = document.getElementById("engagement-pct");
-    const panel           = document.getElementById("emotion-panel");
-    const postureTextEl   = document.getElementById("posture-text");
-    const postureBadgeEl  = document.getElementById("posture-badge");
-    const postureIconEl   = document.getElementById("posture-icon");
-
-    if (stateEl)         stateEl.textContent      = "—";
-    if (confidenceEl)    confidenceEl.textContent  = "—";
-    if (rawLabelEl)      rawLabelEl.textContent    = "";
-    if (postureTextEl)   postureTextEl.textContent = "—";
+    if (stateEl) stateEl.textContent = "—";
+    if (confEl)  confEl.textContent  = "—";
+    if (rawLabelEl) rawLabelEl.textContent = "";
+    if (postureTextEl) postureTextEl.textContent = "—";
     if (postureBadgeEl) {
         postureBadgeEl.textContent = "INACTIVE";
         postureBadgeEl.className = "posture-badge";
     }
-    if (postureIconEl)   postureIconEl.textContent = "🧍";
-    if (alertEl)         alertEl.style.display     = "none";
-    if (bar)             bar.style.width           = "72%";
-    if (pct)             pct.textContent           = "72%";
-    if (panel)           panel.classList.remove("state-engaged","state-bored","state-confused","state-frustrated");
+    if (postureIconEl) postureIconEl.textContent = "🧍";
+    if (banner) banner.style.display = "none";
+    if (panel) panel.classList.remove("state-engaged", "state-bored", "state-confused", "state-frustrated");
 
-    // Reset emotion theme to none when camera stopped (unless manual override active)
     if (!manualEmotionOverride) {
         document.body.setAttribute("data-emotion", "none");
         updateEmotionButtonIndicator("none", false);
     }
 
-    LearningState.postureHistory = [];
+    LearningState.predictionHistory = [];
 }
 
 // ─────────────────────────────────────────────────────────────
-// Temporal smoothing
-// ─────────────────────────────────────────────────────────────
-
-function updatePostureHistory(state, confidence) {
-    LearningState.postureHistory.push({ state, confidence, ts: Date.now() });
-    if (LearningState.postureHistory.length > 5)
-        LearningState.postureHistory = LearningState.postureHistory.slice(-5);
-}
-
-function getStablePosture() {
-    const history = LearningState.postureHistory;
-    if (!history.length) return "ENGAGED";
-    const filtered = history.filter((p) => p.confidence >= 0.30);
-    const src      = filtered.length ? filtered : history;
-    const counts   = {};
-    src.forEach((p) => { counts[p.state] = (counts[p.state] || 0) + 1; });
-    return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
-}
-
-// ─────────────────────────────────────────────────────────────
-// Event listeners — manual mode, lesson buttons
-// ─────────────────────────────────────────────────────────────
-
-// ─────────────────────────────────────────────────────────────
-// Navbar Emotion Dropdown
+// Navbar Emotion Dropdown (Strictly 4 Emotions for Testing)
 // ─────────────────────────────────────────────────────────────
 
 function setupEmotionDropdown() {
@@ -609,7 +526,6 @@ function setupEmotionDropdown() {
 
     if (!toggleBtn || !dropdown) return;
 
-    // Toggle dropdown open/close
     toggleBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         const isOpen = !dropdown.hidden;
@@ -617,7 +533,6 @@ function setupEmotionDropdown() {
         toggleBtn.setAttribute("aria-expanded", String(!isOpen));
     });
 
-    // Close when clicking outside
     document.addEventListener("click", (e) => {
         if (!dropdown.hidden && !dropdown.contains(e.target) && !toggleBtn.contains(e.target)) {
             dropdown.hidden = true;
@@ -625,81 +540,89 @@ function setupEmotionDropdown() {
         }
     });
 
-    // Emotion option click
     optionBtns.forEach((btn) => {
         btn.addEventListener("click", () => {
-            const rawVal = btn.dataset.emotion;  // engaged | bored | confused | frustrated
-            const state = rawVal.toUpperCase();
+            const rawVal = btn.dataset.emotion.toLowerCase(); // engaged | bored | confused | frustrated
 
-            // Set manual override
+            // Set temporary UI preview
             manualEmotionOverride = rawVal;
             applyEmotionTheme(rawVal);
 
-            // Apply panel border theme
-            const panel = document.getElementById("emotion-panel");
-            if (panel) {
-                panel.classList.remove("state-engaged","state-bored","state-confused","state-frustrated");
-                panel.classList.add(`state-${state.toLowerCase()}`);
-            }
-
-            // Mark active option
             optionBtns.forEach((b) => b.classList.remove("active"));
             btn.classList.add("active");
 
-            // Close dropdown
             dropdown.hidden = true;
             toggleBtn.setAttribute("aria-expanded", "false");
 
-            // Update UI elements to match manual choice
-            showPostureAlert(state);
-            updateEngagementBar(state, 1.0);
+            const modeEl = document.getElementById("mode-indicator");
+            if (modeEl) {
+                modeEl.textContent = "PREVIEW";
+                modeEl.className = "mode-indicator manual";
+            }
 
             const stateEl = document.getElementById("current-state");
-            if (stateEl) stateEl.textContent = `${POSTURE_ICONS[state] || "😐"} ${rawVal}`;
-            const confEl = document.getElementById("confidence-value");
-            if (confEl) { confEl.textContent = "Manual"; confEl.style.color = "#818cf8"; }
-            const modeEl = document.getElementById("mode-indicator");
-            if (modeEl) { modeEl.textContent = "MANUAL"; modeEl.className = "mode-indicator manual"; }
+            const confEl  = document.getElementById("confidence-value");
+            const info = EMOTION_DISPLAY[rawVal];
+            if (stateEl && info) stateEl.textContent = `${info.icon} ${info.label}`;
+            if (confEl) {
+                confEl.textContent = "Preview";
+                confEl.style.color = "#818cf8";
+            }
 
-            // Notify backend of manual mode
-            fetch("/api/emotion/mode", {
+            // Immediately apply test adaptation message for user preview
+            fetch("/api/adaptation/evaluate", {
                 method:  "POST",
                 headers: { "Content-Type": "application/json" },
-                body:    JSON.stringify({ mode: "manual", state: state }),
-            }).catch((err) => console.warn("[EduMotion] Backend mode notify failed:", err));
+                body:    JSON.stringify({ emotion: rawVal, posture: "upright", confidence: 1.0, posture_confidence: 1.0 }),
+            })
+            .then((r) => r.json())
+            .then((data) => {
+                // Apply if still in preview for this emotion
+                if (manualEmotionOverride === rawVal) {
+                    showAdaptationBanner(data.message, data.posture_tip, rawVal);
+                }
+            })
+            .catch(() => {
+                if (manualEmotionOverride === rawVal) {
+                    const fallbackMsgs = {
+                        engaged: "Great engagement! Content paced normally.",
+                        bored: "Stimulation boost applied. Interactive elements enabled.",
+                        confused: "Clarification mode active. Additional guidance provided.",
+                        frustrated: "Calming mode active. Take a steady breath and continue.",
+                    };
+                    showAdaptationBanner(fallbackMsgs[rawVal] || "Testing emotion theme.", "Sit upright: back straight.", rawVal);
+                }
+            });
 
-            console.log(`[EduMotion] Emotion manually set to: ${rawVal}`);
+            console.log(`[EduMotion] Manual preview applied: ${rawVal} (live CNN detection will auto-apply next backend result)`);
         });
     });
 
-    // Reset to auto detection
     if (resetBtn) {
         resetBtn.addEventListener("click", () => {
             manualEmotionOverride = null;
             optionBtns.forEach((b) => b.classList.remove("active"));
-            document.body.setAttribute("data-emotion", "none");
-            updateEmotionButtonIndicator("none", false);
             dropdown.hidden = true;
             toggleBtn.setAttribute("aria-expanded", "false");
-            console.log("[EduMotion] Emotion override cleared — back to auto detection.");
 
-            // Notify backend
-            fetch("/api/emotion/mode", {
-                method:  "POST",
-                headers: { "Content-Type": "application/json" },
-                body:    JSON.stringify({ mode: "auto" }),
-            }).catch((err) => console.warn("[EduMotion] Backend mode notify failed:", err));
+            const modeEl = document.getElementById("mode-indicator");
+            if (modeEl) {
+                modeEl.textContent = "AUTO";
+                modeEl.className = "mode-indicator auto";
+            }
+
+            if (!LearningState.isProcessing) {
+                document.body.setAttribute("data-emotion", "none");
+                updateEmotionButtonIndicator("none", false);
+                resetDisplay();
+            } else {
+                const stable = getStablePrediction();
+                applyEmotionTheme(stable.emotion);
+            }
+
+            console.log("[EduMotion] Manual preview cleared — live Auto detection active.");
         });
     }
-}
-
-function setupEventListeners() {
-    document.querySelector(".btn-lesson.more-videos")?.addEventListener("click", () => {
-        alert("More videos — shows related content.");
-    });
-    document.querySelector(".btn-lesson.next-lesson")?.addEventListener("click", () => {
-        alert("Navigating to next lesson…");
-    });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -707,9 +630,9 @@ function setupEventListeners() {
 // ─────────────────────────────────────────────────────────────
 
 function setupYouTubePlayer() {
-    const input = document.getElementById("youtube-url-input");
+    const input   = document.getElementById("youtube-url-input");
     const loadBtn = document.getElementById("btn-load-video");
-    const iframe = document.getElementById("youtube-iframe");
+    const iframe  = document.getElementById("youtube-iframe");
     const titleDisplay = document.getElementById("course-title-display");
 
     if (!input || !loadBtn || !iframe) return;
@@ -717,11 +640,9 @@ function setupYouTubePlayer() {
     function extractYouTubeId(urlOrId) {
         if (!urlOrId) return null;
         const trimmed = urlOrId.trim();
-        // Direct 11 char ID
         if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) {
             return trimmed;
         }
-        // Match various youtube URL formats: watch?v=, youtu.be/, embed/, live/, shorts/
         const match = trimmed.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|live\/|shorts\/))([\w-]{11})/i);
         return match ? match[1] : null;
     }
@@ -730,14 +651,14 @@ function setupYouTubePlayer() {
         const url = input.value.trim();
         const videoId = extractYouTubeId(url);
         if (!videoId) {
-            alert("Please enter a valid YouTube Video URL or Video ID (e.g., https://www.youtube.com/watch?v=HcqpanDadyQ)");
+            alert("Please enter a valid YouTube Video URL (e.g., https://www.youtube.com/watch?v=HcqpanDadyQ)");
             return;
         }
         iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&showinfo=0&enablejsapi=1`;
         if (titleDisplay) {
             titleDisplay.textContent = `Lesson Video (ID: ${videoId})`;
         }
-        console.log(`[EduMotion] Loaded YouTube Video: ${videoId}`);
+        console.log(`[EduMotion] Loaded YouTube Video ID: ${videoId}`);
     }
 
     loadBtn.addEventListener("click", loadVideoFromInput);
@@ -763,12 +684,12 @@ function setupFocusMode() {
         focusBtn.innerHTML = isFocus ? "⬛ Exit Focus" : "🌑 Focus Mode";
         focusBtn.classList.toggle("active", isFocus);
         focusBtn.setAttribute("aria-pressed", String(isFocus));
-        console.log(`[EduMotion] Focus mode: ${isFocus ? "ON — pitch black background" : "OFF"}`);
+        console.log(`[EduMotion] Focus mode: ${isFocus ? "ON" : "OFF"}`);
     });
 }
 
 // ─────────────────────────────────────────────────────────────
-// Utility helpers
+// Helpers
 // ─────────────────────────────────────────────────────────────
 
 function setElDisplay(id, visible) {
@@ -776,11 +697,10 @@ function setElDisplay(id, visible) {
     if (el) el.style.display = visible ? "inline-block" : "none";
 }
 
-/**
- * Show a small status line below the camera controls.
- * Uses #camera-status if present, otherwise uses posture-alert.
- */
 function setStatus(msg) {
     const el = document.getElementById("camera-status");
-    if (el) { el.textContent = msg; el.style.display = msg ? "block" : "none"; }
+    if (el) {
+        el.textContent = msg;
+        el.style.display = msg ? "block" : "none";
+    }
 }

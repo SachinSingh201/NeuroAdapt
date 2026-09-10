@@ -1,7 +1,9 @@
 import time
+import asyncio
 from .cloud_emotion_service import CloudEmotionService
 from .local_emotion_service import LocalEmotionService
 from .image_service import ImageService
+from .adaptation_service import AdaptationService
 from ..config import Config
 
 class EmotionService:
@@ -12,85 +14,56 @@ class EmotionService:
 
     async def predict(self, base64_image: str, mode: str = None):
         """
-        Orchestrates emotion prediction based on the selected mode (cloud, local, auto).
+        Runs backend emotion (local CNN) + posture (cloud API) detection.
+        Returns combined and normalized results.
         """
-        mode = mode or Config.EMOTION_MODE
-        
-        # 1. Decode image for local processing if needed
-        # (Decoding is fast, so we do it if local might be needed)
         cv_image = self.image_service.decode_base64_image(base64_image)
-        
+
         result = {
-            "emotion": "neutral",
+            "emotion": "engaged",
             "confidence": 0.0,
-            "source": "none",
+            "posture": "upright",
+            "posture_confidence": 0.0,
+            "source": "combined",
             "processing_time_ms": 0,
             "error": None
         }
 
         start_time = time.time()
 
-        # CLOUD MODE
-        if mode == "cloud":
-            await self._run_cloud(base64_image, result)
-        
-        # LOCAL MODE
-        elif mode == "local":
-            self._run_local(cv_image, result)
-        
-        # AUTO MODE (Fallback logic)
-        elif mode == "auto":
-            # Try cloud first
-            await self._run_cloud(base64_image, result)
-            
-            # If cloud failed or returned error, fallback to local
-            if result["error"] or result["source"] == "none":
-                print(f"Cloud API failed: {result['error']}. Falling back to local model.")
-                result["error"] = None # Reset error for local attempt
-                self._run_local(cv_image, result)
-        
-        # Add total processing time
-        if result["processing_time_ms"] == 0:
-            result["processing_time_ms"] = int((time.time() - start_time) * 1000)
+        # Run Local Emotion CNN synchronously via asyncio.to_thread
+        def run_emotion():
+            return self.local_service.predict(cv_image)
 
-        # --- Safety: if all attempts failed, return a neutral fallback ---
-        # This prevents the caller from raising HTTP 500 on cloud/network errors.
-        if result.get("error"):
-            print(f"[EduMotion] All prediction attempts failed: {result['error']} -> returning neutral fallback.", flush=True)
-            result["emotion"]    = "upright"   # neutral posture
-            result["confidence"] = 0.0
-            result["source"]     = "none"
-            result["error"]      = None
+        emotion_task = asyncio.to_thread(run_emotion)
+        posture_task = self.cloud_service.predict(base64_image)
 
-        return result
+        # Await both concurrently
+        local_res, cloud_res = await asyncio.gather(emotion_task, posture_task, return_exceptions=True)
 
-    async def _run_cloud(self, base64_image, result):
-        cloud_data, cloud_time = await self.cloud_service.predict(base64_image)
-        
-        if cloud_data and "error" not in cloud_data:
-            emotion, confidence = self.cloud_service.normalize_response(cloud_data)
-            if emotion:
-                result["emotion"] = emotion
-                result["confidence"] = confidence
-                result["source"] = "cloud"
-                result["processing_time_ms"] = cloud_time
-                return
-        
-        result["error"] = cloud_data.get("error") if cloud_data else "Cloud API returned no data"
-
-    def _run_local(self, cv_image, result):
-        if cv_image is None:
-            result["error"] = "Invalid image for local processing"
-            return
-
-        start_local = time.time()
-        emotion, confidence = self.local_service.predict(cv_image)
-        local_time = int((time.time() - start_local) * 1000)
-
-        if emotion:
-            result["emotion"] = emotion
-            result["confidence"] = confidence
-            result["source"] = "local"
-            result["processing_time_ms"] = local_time
+        # Parse local emotion
+        if isinstance(local_res, Exception):
+            print(f"Local emotion failed: {local_res}")
+            result["error"] = str(local_res)
         else:
-            result["error"] = "Local model failed to predict"
+            emotion, conf = local_res
+            if emotion:
+                result["emotion"] = AdaptationService.normalize_emotion(emotion)
+                result["confidence"] = float(conf)
+
+        # Parse cloud posture
+        if isinstance(cloud_res, Exception):
+            print(f"Cloud posture failed: {cloud_res}")
+        else:
+            cloud_data, _ = cloud_res
+            if cloud_data and "error" not in cloud_data:
+                posture, p_conf = self.cloud_service.normalize_response(cloud_data)
+                if posture:
+                    result["posture"] = AdaptationService.normalize_posture(posture)
+                    result["posture_confidence"] = float(p_conf)
+            else:
+                err = cloud_data.get("error") if cloud_data else "Unknown posture error"
+                print(f"Cloud posture note: {err}")
+
+        result["processing_time_ms"] = int((time.time() - start_time) * 1000)
+        return result

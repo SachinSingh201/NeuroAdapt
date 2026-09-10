@@ -44,40 +44,25 @@ class Config:
     STABLE_PREDICTIONS_REQUIRED = int(os.getenv("STABLE_PREDICTIONS_REQUIRED", 3))
     TEMPORAL_WINDOW_SIZE = int(os.getenv("TEMPORAL_WINDOW_SIZE", 5))
 
-    # --------------------------------------------------------
-    # Posture → Learning State Mapping
-    # (used when source == "cloud", i.e. Roboflow posture model)
-    # --------------------------------------------------------
-    POSTURE_MAPPING = {
-        "upright":          "FOCUSED",    # Good posture → focused & attentive
-        "leaning_forward":  "CONFUSED",   # Leaning into screen → confused/straining
-        "leaning_backward": "TIRED",      # Slouching back → disengaged/tired
-        "leaning_left":     "TIRED",      # Sideways lean → uncomfortable/tired
-        "leaning_right":    "TIRED",      # Sideways lean → uncomfortable/tired
-    }
+    # Supported Emotions (strictly limited to 4 CNN classes)
+    ALLOWED_EMOTIONS = ["engaged", "bored", "confused", "frustrated"]
 
-    # Emotion Mappings for local model (Raw Model Output → Learning State)
-    CANONICAL_MAPPING = {
-        "neutral":  "CALM",
-        "happy":    "HAPPY",
-        "sad":      "TIRED",
-        "angry":    "STRESSED",
-        "fear":     "STRESSED",
-        "disgust":  "STRESSED",
-        "surprise": "CONFUSED",
-    }
+    # Supported Posture Classes from Roboflow Posture Model
+    ALLOWED_POSTURES = [
+        "upright",
+        "leaning_forward",
+        "leaning_backward",
+        "slouched",
+        "leaning_left",
+        "leaning_right",
+    ]
 
-    # Mapping for local model specific emotions (from notebook)
-    LOCAL_MODEL_MAPPING = {
-        "engaged":    "FOCUSED",
-        "bored":      "TIRED",
-        "confused":   "CONFUSED",
-        "frustrated": "STRESSED",
-    }
-
-    # All possible learning states
+    # Canonical Learning States
     LEARNING_STATES = [
-        "CALM", "HAPPY", "FOCUSED", "STRESSED", "TIRED", "CONFUSED"
+        "ENGAGED",
+        "BORED",
+        "CONFUSED",
+        "FRUSTRATED",
     ]
 
     # Course Metadata (Configurable)

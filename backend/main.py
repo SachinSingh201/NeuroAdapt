@@ -145,113 +145,70 @@ async def emotion_status():
 async def predict_emotion(
     request: EmotionPredictionRequest
 ):
-
     try:
-
         start_time = time.time()
-
-        # ----------------------------------------------------
-        # Decode image
-        # ----------------------------------------------------
 
         cv_image = emotion_service.image_service.decode_base64_image(
             request.image
         )
 
         if cv_image is None:
-
             raise HTTPException(
                 status_code=400,
                 detail="Invalid image data"
             )
 
-        # ----------------------------------------------------
-        # Get mode
-        # ----------------------------------------------------
-
-        mode = (
-            request.mode
-            or Config.EMOTION_MODE
-        )
-
-        # ----------------------------------------------------
-        # Prediction
-        # ----------------------------------------------------
+        mode = request.mode or Config.EMOTION_MODE
 
         result = await emotion_service.predict(
             request.image,
             mode
         )
 
-        # ----------------------------------------------------
-        # Processing time
-        # ----------------------------------------------------
-
         processing_time_ms = int(
             (time.time() - start_time) * 1000
         )
 
-        # ----------------------------------------------------
-        # Result
-        # ----------------------------------------------------
+        raw_emotion = result.get("emotion", "engaged")
+        posture = result.get("posture", "upright")
+        source = result.get("source", "combined")
+        confidence = float(result.get("confidence", 0.0))
+        posture_confidence = float(result.get("posture_confidence", 0.0))
+        err = result.get("error")
 
-        raw_emotion = result.get(
-            "emotion",
-            "neutral"
+        # Evaluate against centralized 24-combination matrix
+        adaptation_data = AdaptationService.evaluate(
+            emotion=raw_emotion,
+            posture=posture,
+            confidence=confidence,
+            posture_confidence=posture_confidence,
         )
-
-        source = result.get(
-            "source",
-            "none"
-        )
-
-        confidence = result.get(
-            "confidence",
-            0.0
-        )
-
-        # ----------------------------------------------------
-        # Learning state
-        # ----------------------------------------------------
-
-        learning_state = (
-            AdaptationService.map_to_learning_state(
-                raw_emotion,
-                source
-            )
-        )
-
-        # ----------------------------------------------------
-        # UI adaptation
-        # ----------------------------------------------------
-
-        adaptation = (
-            AdaptationService.get_adaptation_ui_changes(
-                learning_state,
-                confidence
-            )
-        )
-
-        # ----------------------------------------------------
-        # Response
-        # ----------------------------------------------------
 
         response = EmotionPredictionResponse(
-            emotion=raw_emotion,
-            learning_state=learning_state,
+            emotion=adaptation_data["emotion"],
+            posture=adaptation_data["posture"],
+            learning_state=adaptation_data["learning_state"],
             confidence=confidence,
+            posture_confidence=posture_confidence,
+            theme=adaptation_data["theme"],
+            background=adaptation_data["background"],
+            message=adaptation_data["message"],
+            posture_tip=adaptation_data["posture_tip"],
+            action=adaptation_data["action"],
+            assistance=adaptation_data["assistance"],
             source=source,
             processing_time_ms=processing_time_ms,
-            adaptation=adaptation,
+            adaptation=adaptation_data,
+            error=err,
         )
 
         logger.info(
-            "Emotion prediction: %s -> %s "
-            "(confidence=%.2f, source=%s, "
-            "processing_time=%sms)",
+            "Emotion prediction: %s / %s -> %s (conf=%.2f/%.2f, source=%s, %sms)",
             raw_emotion,
-            learning_state,
+            posture,
+            adaptation_data["learning_state"],
             confidence,
+            posture_confidence,
             source,
             processing_time_ms,
         )
@@ -259,15 +216,9 @@ async def predict_emotion(
         return response
 
     except HTTPException:
-
         raise
-
     except Exception as e:
-
-        logger.exception(
-            "Error in emotion prediction"
-        )
-
+        logger.exception("Error in emotion prediction")
         raise HTTPException(
             status_code=500,
             detail=str(e)
@@ -285,38 +236,20 @@ async def predict_emotion(
 async def predict_emotion_base64(
     request: EmotionPredictionRequest
 ):
-
     try:
-
         start_time = time.time()
-
-        # ----------------------------------------------------
-        # Decode image
-        # ----------------------------------------------------
 
         cv_image = emotion_service.image_service.decode_base64_image(
             request.image
         )
 
         if cv_image is None:
-
             raise HTTPException(
                 status_code=400,
                 detail="Invalid image data"
             )
 
-        # ----------------------------------------------------
-        # Prediction mode
-        # ----------------------------------------------------
-
-        mode = (
-            request.mode
-            or Config.EMOTION_MODE
-        )
-
-        # ----------------------------------------------------
-        # Prediction
-        # ----------------------------------------------------
+        mode = request.mode or Config.EMOTION_MODE
 
         result = await emotion_service.predict(
             request.image,
@@ -327,92 +260,61 @@ async def predict_emotion_base64(
             (time.time() - start_time) * 1000
         )
 
-        # ----------------------------------------------------
-        # Extract result
-        # ----------------------------------------------------
+        raw_emotion = result.get("emotion", "engaged")
+        posture = result.get("posture", "upright")
+        source = result.get("source", "combined")
+        confidence = float(result.get("confidence", 0.0))
+        posture_confidence = float(result.get("posture_confidence", 0.0))
+        err = result.get("error")
 
-        raw_emotion = result.get(
-            "emotion",
-            "neutral"
+        # Evaluate against centralized 24-combination matrix
+        adaptation_data = AdaptationService.evaluate(
+            emotion=raw_emotion,
+            posture=posture,
+            confidence=confidence,
+            posture_confidence=posture_confidence,
         )
-
-        source = result.get(
-            "source",
-            "none"
-        )
-
-        confidence = result.get(
-            "confidence",
-            0.0
-        )
-
-        # ----------------------------------------------------
-        # Learning state
-        # ----------------------------------------------------
-
-        learning_state = (
-            AdaptationService.map_to_learning_state(
-                raw_emotion,
-                source
-            )
-        )
-
-        # ----------------------------------------------------
-        # Adaptation
-        # ----------------------------------------------------
-
-        adaptation = (
-            AdaptationService.get_adaptation_ui_changes(
-                learning_state,
-                confidence
-            )
-        )
-
-        # ----------------------------------------------------
-        # Response
-        # ----------------------------------------------------
 
         response = EmotionPredictionResponse(
-            emotion=raw_emotion,
-            learning_state=learning_state,
+            emotion=adaptation_data["emotion"],
+            posture=adaptation_data["posture"],
+            learning_state=adaptation_data["learning_state"],
             confidence=confidence,
+            posture_confidence=posture_confidence,
+            theme=adaptation_data["theme"],
+            background=adaptation_data["background"],
+            message=adaptation_data["message"],
+            posture_tip=adaptation_data["posture_tip"],
+            action=adaptation_data["action"],
+            assistance=adaptation_data["assistance"],
             source=source,
             processing_time_ms=processing_time_ms,
-            adaptation=adaptation,
+            adaptation=adaptation_data,
+            error=err,
         )
 
         # -- Terminal output (ASCII-safe for Windows CP1252 console) --
         conf_pct = int(confidence * 100)
         conf_bar = "#" * (conf_pct // 10) + "." * (10 - conf_pct // 10)
         print(
-            f"\n[EduMotion] Posture Detection Result"
-            f"\n  Raw Posture   : {raw_emotion}"
-            f"\n  Learning State: {learning_state}"
-            f"\n  Confidence    : {conf_pct}%  [{conf_bar}]"
-            f"\n  Source        : {source}"
+            f"\n[EduMotion] Combined Detection Result"
+            f"\n  Emotion       : {adaptation_data['emotion']} (conf: {conf_pct}%)"
+            f"\n  Posture       : {adaptation_data['posture']} (conf: {int(posture_confidence*100)}%)"
+            f"\n  Learning State: {adaptation_data['learning_state']}"
+            f"\n  Theme/Action  : {adaptation_data['theme']} / {adaptation_data['action']}"
+            f"\n  Source        : {source} [{conf_bar}]"
             f"\n  Processing    : {processing_time_ms}ms"
             f"\n  -> Sent to frontend OK",
             flush=True
         )
 
-        logger.info(
-            "Emotion prediction (base64): %s -> %s (conf=%.2f, src=%s, %dms)",
-            raw_emotion, learning_state, confidence, source, processing_time_ms
-        )
-
         return response
 
     except HTTPException:
-
         raise
-
     except Exception as e:
-
         print(f"[EduMotion] ERROR in base64 prediction: {e}", flush=True)
-        logger.exception(
-            "Error in base64 emotion prediction"
-        )
-
+        logger.exception("Error in base64 emotion prediction")
         raise HTTPException(
             status_code=500,
             detail=str(e)
@@ -434,7 +336,6 @@ class ModeRequest(BaseModel):
 async def set_emotion_mode(
     body: ModeRequest
 ):
-
     valid_modes = [
         "cloud",
         "local",
@@ -443,34 +344,31 @@ async def set_emotion_mode(
     ]
 
     if body.mode not in valid_modes:
-
         raise HTTPException(
             status_code=400,
-            detail=(
-                "Invalid mode. "
-                f"Must be one of: {valid_modes}"
-            )
+            detail=f"Invalid mode. Must be one of: {valid_modes}"
         )
+
+    norm_state = None
+    if body.state:
+        norm_state = AdaptationService.normalize_emotion(body.state)
 
     if body.mode != "manual":
         Config.EMOTION_MODE = body.mode
 
-    # Load local model if required
     if body.mode == "local":
         emotion_service.local_service.load_model()
 
     logger.info(
         "Emotion mode changed to: %s (state=%s)",
         body.mode,
-        body.state,
+        norm_state,
     )
 
     return {
         "mode": body.mode,
-        "state": body.state,
-        "message": (
-            f"Emotion inference mode set to {body.mode}"
-        ),
+        "state": norm_state or body.state,
+        "message": f"Emotion inference mode set to {body.mode}",
     }
 
 
@@ -483,21 +381,13 @@ async def set_emotion_mode(
     response_model=LessonContent
 )
 async def get_lesson():
-
     return LessonContent(
-
         id="lesson_1",
-
         course_name=Config.COURSE_NAME,
-
         lesson_title=Config.LESSON_TITLE,
-
         description=Config.LESSON_DESCRIPTION,
-
         video_url=Config.YOUTUBE_VIDEO_URL,
-
         content_body=Config.LESSON_DESCRIPTION,
-
         progress=0,
     )
 
@@ -510,87 +400,36 @@ async def get_lesson():
 async def evaluate_adaptation(
     state_data: dict
 ):
-
     try:
+        emotion = state_data.get("emotion", "engaged")
+        posture = state_data.get("posture", "upright")
+        confidence = float(state_data.get("confidence", 1.0))
+        posture_confidence = float(state_data.get("posture_confidence", 1.0))
 
-        emotion = state_data.get(
-            "emotion",
-            "neutral"
+        adaptation_data = AdaptationService.evaluate(
+            emotion=emotion,
+            posture=posture,
+            confidence=confidence,
+            posture_confidence=posture_confidence,
         )
-
-        confidence = state_data.get(
-            "confidence",
-            0.0
-        )
-
-        source = state_data.get(
-            "source",
-            "cloud"
-        )
-
-        # ----------------------------------------------------
-        # Learning state
-        # ----------------------------------------------------
-
-        learning_state = (
-            AdaptationService.map_to_learning_state(
-                emotion,
-                source
-            )
-        )
-
-        # ----------------------------------------------------
-        # UI adaptation
-        # ----------------------------------------------------
-
-        adaptation = (
-            AdaptationService.get_adaptation_ui_changes(
-                learning_state,
-                confidence
-            )
-        )
-
-        # ----------------------------------------------------
-        # Combination handling
-        # ----------------------------------------------------
-
-        current_states = [
-            learning_state
-        ]
-
-        if confidence >= Config.MIN_CONFIDENCE:
-
-            combo_result = (
-                AdaptationService.handle_combinations(
-                    current_states
-                )
-            )
-
-        else:
-
-            combo_result = learning_state
 
         return {
-
-            "raw_emotion": emotion,
-
-            "learning_state": learning_state,
-
+            "raw_emotion": adaptation_data["emotion"],
+            "posture": adaptation_data["posture"],
+            "learning_state": adaptation_data["learning_state"],
             "confidence": confidence,
-
-            "source": source,
-
-            "adaptation": adaptation,
-
-            "combination_mode": combo_result,
+            "posture_confidence": posture_confidence,
+            "theme": adaptation_data["theme"],
+            "background": adaptation_data["background"],
+            "message": adaptation_data["message"],
+            "posture_tip": adaptation_data["posture_tip"],
+            "action": adaptation_data["action"],
+            "assistance": adaptation_data["assistance"],
+            "adaptation": adaptation_data,
         }
 
     except Exception as e:
-
-        logger.exception(
-            "Error in adaptation evaluation"
-        )
-
+        logger.exception("Error in adaptation evaluation")
         raise HTTPException(
             status_code=500,
             detail=str(e)
