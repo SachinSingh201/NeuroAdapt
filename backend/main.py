@@ -1,6 +1,15 @@
+import sys
 import time
 import logging
 from pathlib import Path
+
+# Ensure UTF-8 console output for terminal printing on Windows
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
@@ -169,48 +178,71 @@ async def predict_emotion(
             (time.time() - start_time) * 1000
         )
 
-        raw_emotion = result.get("emotion", "engaged")
+        deepface_emotion = result.get("deepface_raw_emotion")
+        deepface_conf = float(result.get("deepface_confidence", 0.0))
+        face_detected = bool(result.get("face_detected", False))
+        face_status = result.get("face_status_log", "DETECTED")
+        learning_scores = result.get("learning_scores", {})
+        final_scores = result.get("final_scores", {})
+        final_emotion = result.get("final_emotion", "engaged")
+        final_conf = float(result.get("final_confidence", 0.0))
         posture = result.get("posture", "upright")
-        source = result.get("source", "combined")
-        confidence = float(result.get("confidence", 0.0))
-        posture_confidence = float(result.get("posture_confidence", 0.0))
+        posture_conf = float(result.get("posture_confidence", 0.80))
+        source = result.get("source", "deepface+stats")
         err = result.get("error")
 
         # Evaluate against centralized 24-combination matrix
         adaptation_data = AdaptationService.evaluate(
-            emotion=raw_emotion,
+            emotion=final_emotion,
             posture=posture,
-            confidence=confidence,
-            posture_confidence=posture_confidence,
+            confidence=final_conf,
+            posture_confidence=posture_conf,
         )
 
         response = EmotionPredictionResponse(
             emotion=adaptation_data["emotion"],
             posture=adaptation_data["posture"],
             learning_state=adaptation_data["learning_state"],
-            confidence=confidence,
-            posture_confidence=posture_confidence,
+            confidence=final_conf,
+            posture_confidence=posture_conf,
             theme=adaptation_data["theme"],
             background=adaptation_data["background"],
             message=adaptation_data["message"],
             posture_tip=adaptation_data["posture_tip"],
             action=adaptation_data["action"],
             assistance=adaptation_data["assistance"],
+            deepface_emotion=deepface_emotion,
+            deepface_confidence=deepface_conf,
+            learning_scores=learning_scores,
+            final_scores=final_scores,
+            final_emotion=adaptation_data["learning_state"],
+            face_detected=face_detected,
+            face_status=face_status,
             source=source,
             processing_time_ms=processing_time_ms,
             adaptation=adaptation_data,
             error=err,
         )
 
-        logger.info(
-            "Emotion prediction: %s / %s -> %s (conf=%.2f/%.2f, source=%s, %sms)",
-            raw_emotion,
-            posture,
-            adaptation_data["learning_state"],
-            confidence,
-            posture_confidence,
-            source,
-            processing_time_ms,
+        # Clear Terminal Output
+        learn_str = " | ".join(f"{k.capitalize()}: {v:.2f}" for k, v in learning_scores.items())
+        final_str = " | ".join(f"{k.capitalize()}: {v:.4f}" for k, v in final_scores.items())
+        sep = "=" * 65
+        print(
+            f"\n{sep}"
+            f"\n[EduMotion] Emotion & Learning State Evaluation"
+            f"\n-----------------------------------------------------------------"
+            f"\n  Face Detection    : {face_status}"
+            + (f"\n  >>> NO_FACE_DETECTED: Using fallback state without forcing emotion <<<" if face_status == "NO_FACE_DETECTED" else "") +
+            f"\n  DeepFace Emotion  : {deepface_emotion or 'None'} (Confidence: {int(deepface_conf*100)}%)"
+            f"\n  Detected Posture  : {posture} (Confidence: {int(posture_conf*100)}%)"
+            f"\n  Learning Scores   : {learn_str}"
+            f"\n  Final Scores      : {final_str}"
+            f"\n  Final Emotion     : {adaptation_data['learning_state']} (Confidence: {int(final_conf*100)}%)"
+            f"\n  UI Action / Theme : {adaptation_data['action']} / {adaptation_data['theme']}"
+            f"\n  Processing Time   : {processing_time_ms}ms"
+            f"\n{sep}\n",
+            flush=True
         )
 
         return response
@@ -260,51 +292,70 @@ async def predict_emotion_base64(
             (time.time() - start_time) * 1000
         )
 
-        raw_emotion = result.get("emotion", "engaged")
+        deepface_emotion = result.get("deepface_raw_emotion")
+        deepface_conf = float(result.get("deepface_confidence", 0.0))
+        face_detected = bool(result.get("face_detected", False))
+        face_status = result.get("face_status_log", "DETECTED")
+        learning_scores = result.get("learning_scores", {})
+        final_scores = result.get("final_scores", {})
+        final_emotion = result.get("final_emotion", "engaged")
+        final_conf = float(result.get("final_confidence", 0.0))
         posture = result.get("posture", "upright")
-        source = result.get("source", "combined")
-        confidence = float(result.get("confidence", 0.0))
-        posture_confidence = float(result.get("posture_confidence", 0.0))
+        posture_conf = float(result.get("posture_confidence", 0.80))
+        source = result.get("source", "deepface+stats")
         err = result.get("error")
 
         # Evaluate against centralized 24-combination matrix
         adaptation_data = AdaptationService.evaluate(
-            emotion=raw_emotion,
+            emotion=final_emotion,
             posture=posture,
-            confidence=confidence,
-            posture_confidence=posture_confidence,
+            confidence=final_conf,
+            posture_confidence=posture_conf,
         )
 
         response = EmotionPredictionResponse(
             emotion=adaptation_data["emotion"],
             posture=adaptation_data["posture"],
             learning_state=adaptation_data["learning_state"],
-            confidence=confidence,
-            posture_confidence=posture_confidence,
+            confidence=final_conf,
+            posture_confidence=posture_conf,
             theme=adaptation_data["theme"],
             background=adaptation_data["background"],
             message=adaptation_data["message"],
             posture_tip=adaptation_data["posture_tip"],
             action=adaptation_data["action"],
             assistance=adaptation_data["assistance"],
+            deepface_emotion=deepface_emotion,
+            deepface_confidence=deepface_conf,
+            learning_scores=learning_scores,
+            final_scores=final_scores,
+            final_emotion=adaptation_data["learning_state"],
+            face_detected=face_detected,
+            face_status=face_status,
             source=source,
             processing_time_ms=processing_time_ms,
             adaptation=adaptation_data,
             error=err,
         )
 
-        # -- Terminal output (ASCII-safe for Windows CP1252 console) --
-        conf_pct = int(confidence * 100)
-        conf_bar = "#" * (conf_pct // 10) + "." * (10 - conf_pct // 10)
+        # Clear Terminal Output
+        learn_str = " | ".join(f"{k.capitalize()}: {v:.2f}" for k, v in learning_scores.items())
+        final_str = " | ".join(f"{k.capitalize()}: {v:.4f}" for k, v in final_scores.items())
+        sep = "=" * 65
         print(
-            f"\n[EduMotion] Combined Detection Result"
-            f"\n  Emotion       : {adaptation_data['emotion']} (conf: {conf_pct}%)"
-            f"\n  Posture       : {adaptation_data['posture']} (conf: {int(posture_confidence*100)}%)"
-            f"\n  Learning State: {adaptation_data['learning_state']}"
-            f"\n  Theme/Action  : {adaptation_data['theme']} / {adaptation_data['action']}"
-            f"\n  Source        : {source} [{conf_bar}]"
-            f"\n  Processing    : {processing_time_ms}ms"
-            f"\n  -> Sent to frontend OK",
+            f"\n{sep}"
+            f"\n[EduMotion] Emotion & Learning State Evaluation"
+            f"\n-----------------------------------------------------------------"
+            f"\n  Face Detection    : {face_status}"
+            + (f"\n  >>> NO_FACE_DETECTED: Using fallback state without forcing emotion <<<" if face_status == "NO_FACE_DETECTED" else "") +
+            f"\n  DeepFace Emotion  : {deepface_emotion or 'None'} (Confidence: {int(deepface_conf*100)}%)"
+            f"\n  Detected Posture  : {posture} (Confidence: {int(posture_conf*100)}%)"
+            f"\n  Learning Scores   : {learn_str}"
+            f"\n  Final Scores      : {final_str}"
+            f"\n  Final Emotion     : {adaptation_data['learning_state']} (Confidence: {int(final_conf*100)}%)"
+            f"\n  UI Action / Theme : {adaptation_data['action']} / {adaptation_data['theme']}"
+            f"\n  Processing Time   : {processing_time_ms}ms"
+            f"\n{sep}\n",
             flush=True
         )
 

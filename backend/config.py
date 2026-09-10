@@ -66,7 +66,7 @@ class Config:
     ]
 
     # Course Metadata (Configurable)
-    COURSE_NAME = "Introduction to Machine Learning"
-    LESSON_TITLE = "Foundations of AI & ML"
-    LESSON_DESCRIPTION = "Explore the fundamental concepts of machine learning, from supervised learning to neural networks."
+    COURSE_NAME = "Adaptive Learning Dashboard"
+    LESSON_TITLE = "Interactive Study Session"
+    LESSON_DESCRIPTION = "Real-time emotion-aware adaptive learning environment."
     YOUTUBE_VIDEO_URL = "https://www.youtube.com/embed/HcqpanDadyQ"

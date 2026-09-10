@@ -360,11 +360,12 @@ async function sendFrameToBackend(base64Image, frameNum) {
 // ─────────────────────────────────────────────────────────────
 
 function updateDetectionUI(result) {
-    const rawEmotion = (result.emotion || "engaged").toLowerCase();
+    const rawEmotion = (result.emotion || result.final_emotion || "engaged").toLowerCase();
     const rawPosture = (result.posture || "upright").toLowerCase();
     const confidence = Number(result.confidence || 0);
     const postureConf = Number(result.posture_confidence || 0);
     const avgConf    = postureConf > 0 ? (confidence + postureConf) / 2 : confidence;
+    const faceStatus = result.face_status || "DETECTED";
 
     // Push into rolling window
     LearningState.predictionHistory.push({
@@ -381,29 +382,19 @@ function updateDetectionUI(result) {
     // Get smoothed stable prediction from backend history
     const stable = getStablePrediction();
 
-    // Automatically clear temporary manual preview override as soon as backend detection arrives
-    if (manualEmotionOverride !== null) {
-        console.log(`[EduMotion] Live backend detection received (${stable.emotion}) — clearing temporary manual preview.`);
-        manualEmotionOverride = null;
-
-        const optionBtns = document.querySelectorAll(".emotion-option[data-emotion]");
-        optionBtns.forEach((b) => b.classList.remove("active"));
-
-        const modeEl = document.getElementById("mode-indicator");
-        if (modeEl) {
-            modeEl.textContent = "AUTO";
-            modeEl.className   = "mode-indicator auto";
-        }
-    }
+    // Determine active emotion: respect manual emotion override if user set one
+    const activeEmotion = manualEmotionOverride || stable.emotion;
 
     // Update Monitor UI with backend source of truth
-    updateStateDisplay(stable.emotion, stable.posture, confidence, postureConf);
+    updateStateDisplay(activeEmotion, stable.posture, confidence, postureConf, faceStatus, result.deepface_emotion);
 
-    // Apply whole-page theme derived from backend detection
-    applyEmotionTheme(stable.emotion);
+    // Apply whole-page theme derived from active emotion
+    applyEmotionTheme(activeEmotion);
 
-    // Display adaptive message and posture tip from backend CNN response
-    showAdaptationBanner(result.message, result.posture_tip, stable.emotion);
+    // Display adaptive message and posture tip from backend response
+    if (!manualEmotionOverride) {
+        showAdaptationBanner(result.message, result.posture_tip, activeEmotion);
+    }
 }
 
 /**
@@ -427,7 +418,7 @@ function getStablePrediction() {
     return { emotion: stableEmotion, posture: stablePosture };
 }
 
-function updateStateDisplay(emotion, posture, emotionConf, postureConf) {
+function updateStateDisplay(emotion, posture, emotionConf, postureConf, faceStatus = "DETECTED", deepfaceEmotion = null) {
     const stateEl        = document.getElementById("current-state");
     const confEl         = document.getElementById("confidence-value");
     const rawLabelEl     = document.getElementById("raw-posture-label");
@@ -441,7 +432,13 @@ function updateStateDisplay(emotion, posture, emotionConf, postureConf) {
     const formattedPosture = POSTURE_RAW_LABELS[posture] || posture.replace(/_/g, " ");
     const postureIcon = POSTURE_ICONS_BY_NAME[posture] || "🧍";
 
-    if (stateEl) stateEl.textContent = `${emotionInfo.icon} ${emotionInfo.label}`;
+    if (stateEl) {
+        if (faceStatus === "NO_FACE_DETECTED" && !manualEmotionOverride) {
+            stateEl.textContent = `⚠️ No Face Detected`;
+        } else {
+            stateEl.textContent = `${emotionInfo.icon} ${emotionInfo.label}`;
+        }
+    }
     if (rawLabelEl) rawLabelEl.textContent = formattedPosture;
 
     if (confEl) {
@@ -457,9 +454,14 @@ function updateStateDisplay(emotion, posture, emotionConf, postureConf) {
     }
     if (postureIconEl) postureIconEl.textContent = postureIcon;
 
-    if (modeEl && !manualEmotionOverride) {
-        modeEl.textContent = "AUTO";
-        modeEl.className   = "mode-indicator auto";
+    if (modeEl) {
+        if (manualEmotionOverride) {
+            modeEl.textContent = "MANUAL";
+            modeEl.className   = "mode-indicator manual";
+        } else {
+            modeEl.textContent = faceStatus === "NO_FACE_DETECTED" ? "NO FACE" : "AUTO";
+            modeEl.className   = faceStatus === "NO_FACE_DETECTED" ? "mode-indicator warning" : "mode-indicator auto";
+        }
     }
 
     if (panel) {
@@ -633,7 +635,6 @@ function setupYouTubePlayer() {
     const input   = document.getElementById("youtube-url-input");
     const loadBtn = document.getElementById("btn-load-video");
     const iframe  = document.getElementById("youtube-iframe");
-    const titleDisplay = document.getElementById("course-title-display");
 
     if (!input || !loadBtn || !iframe) return;
 
@@ -655,9 +656,6 @@ function setupYouTubePlayer() {
             return;
         }
         iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&showinfo=0&enablejsapi=1`;
-        if (titleDisplay) {
-            titleDisplay.textContent = `Lesson Video (ID: ${videoId})`;
-        }
         console.log(`[EduMotion] Loaded YouTube Video ID: ${videoId}`);
     }
 
