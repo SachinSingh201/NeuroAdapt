@@ -180,11 +180,9 @@ async def predict_emotion(
 
         deepface_emotion = result.get("deepface_raw_emotion")
         deepface_conf = float(result.get("deepface_confidence", 0.0))
-        face_detected = bool(result.get("face_detected", False))
-        face_status = result.get("face_status_log", "DETECTED")
         learning_scores = result.get("learning_scores", {})
         final_scores = result.get("final_scores", {})
-        final_emotion = result.get("final_emotion", "unknown")
+        final_emotion = result.get("final_emotion", "engaged")
         final_conf = float(result.get("final_confidence", 0.0))
         posture = result.get("posture", "upright")
         posture_conf = float(result.get("posture_confidence", 0.80))
@@ -216,8 +214,6 @@ async def predict_emotion(
             learning_scores=learning_scores,
             final_scores=final_scores,
             final_emotion=adaptation_data["learning_state"],
-            face_detected=face_detected,
-            face_status=face_status,
             source=source,
             processing_time_ms=processing_time_ms,
             adaptation=adaptation_data,
@@ -232,8 +228,6 @@ async def predict_emotion(
             f"\n{sep}"
             f"\n[EduMotion] Emotion & Learning State Evaluation"
             f"\n-----------------------------------------------------------------"
-            f"\n  Face Detection    : {face_status}"
-            + (f"\n  >>> NO_FACE_DETECTED: Using fallback state without forcing emotion <<<" if face_status == "NO_FACE_DETECTED" else "") +
             f"\n  DeepFace Emotion  : {deepface_emotion or 'None'} (Confidence: {int(deepface_conf*100)}%)"
             f"\n  Detected Posture  : {posture} (Confidence: {int(posture_conf*100)}%)"
             f"\n  Learning Scores   : {learn_str}"
@@ -294,11 +288,9 @@ async def predict_emotion_base64(
 
         deepface_emotion = result.get("deepface_raw_emotion")
         deepface_conf = float(result.get("deepface_confidence", 0.0))
-        face_detected = bool(result.get("face_detected", False))
-        face_status = result.get("face_status_log", "DETECTED")
         learning_scores = result.get("learning_scores", {})
         final_scores = result.get("final_scores", {})
-        final_emotion = result.get("final_emotion", "unknown")
+        final_emotion = result.get("final_emotion", "engaged")
         final_conf = float(result.get("final_confidence", 0.0))
         posture = result.get("posture", "upright")
         posture_conf = float(result.get("posture_confidence", 0.80))
@@ -330,8 +322,6 @@ async def predict_emotion_base64(
             learning_scores=learning_scores,
             final_scores=final_scores,
             final_emotion=adaptation_data["learning_state"],
-            face_detected=face_detected,
-            face_status=face_status,
             source=source,
             processing_time_ms=processing_time_ms,
             adaptation=adaptation_data,
@@ -346,8 +336,6 @@ async def predict_emotion_base64(
             f"\n{sep}"
             f"\n[EduMotion] Emotion & Learning State Evaluation"
             f"\n-----------------------------------------------------------------"
-            f"\n  Face Detection    : {face_status}"
-            + (f"\n  >>> NO_FACE_DETECTED: Using fallback state without forcing emotion <<<" if face_status == "NO_FACE_DETECTED" else "") +
             f"\n  DeepFace Emotion  : {deepface_emotion or 'None'} (Confidence: {int(deepface_conf*100)}%)"
             f"\n  Detected Posture  : {posture} (Confidence: {int(posture_conf*100)}%)"
             f"\n  Learning Scores   : {learn_str}"

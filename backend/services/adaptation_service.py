@@ -278,7 +278,7 @@ class AdaptationService:
             return "engaged"
         raw = emotion.lower().strip()
         # Pass through valid states directly
-        valid = ["engaged", "bored", "confused", "frustrated", "unknown", "face_not_detected"]
+        valid = ["engaged", "bored", "confused", "frustrated"]
         if raw in valid:
             return raw
         # Map DeepFace raw emotions / legacy values
@@ -286,16 +286,16 @@ class AdaptationService:
             "happy": "engaged",
             "focused": "engaged",
             "calm": "engaged",
-            "neutral": "engaged",
+            "neutral": "bored",
+            "surprise": "engaged",
             "sad": "bored",
             "tired": "bored",
-            "surprise": "unknown",
+            "fear": "confused",
+            "disgust": "frustrated",
             "angry": "frustrated",
             "stressed": "frustrated",
-            "fear": "frustrated",
-            "disgust": "confused",   # per spec: disgust -> confused
         }
-        return legacy_map.get(raw, "unknown")
+        return legacy_map.get(raw, "engaged")
 
     @staticmethod
     def normalize_posture(posture: str) -> str:
@@ -332,21 +332,6 @@ class AdaptationService:
         """
         norm_emotion = cls.normalize_emotion(emotion)
         norm_posture = cls.normalize_posture(posture)
-
-        # Handle face_not_detected and unknown states specially
-        if norm_emotion in ("face_not_detected", "unknown"):
-            return {
-                "emotion": norm_emotion,
-                "posture": norm_posture,
-                "learning_state": norm_emotion.upper(),
-                "theme": "neutral",
-                "background": norm_emotion,
-                "message": "No face detected — camera is active but face is not visible." if norm_emotion == "face_not_detected" else "Detection unclear — please ensure good lighting and face the camera.",
-                "posture_tip": "Position yourself clearly in frame for accurate detection.",
-                "action": "maintain",
-                "assistance": "none",
-                "density": "standard",
-            }
 
         # Retrieve combination from matrix or generate dynamic fallback
         key = (norm_emotion, norm_posture)

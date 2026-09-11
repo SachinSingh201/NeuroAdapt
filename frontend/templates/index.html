@@ -16,7 +16,9 @@
                 <a href="#" class="navbar-logo">EduMotion</a>
             </div>
             <ul class="navbar-nav">
-                <li><a href="#home" class="nav-link">Home</a></li>
+                <li><a href="#" class="nav-link">Home</a></li>
+                <li><a href="#how-it-works" class="nav-link">How It Works</a></li>
+                <li><a href="#team" class="nav-link">Team</a></li>
                 <li><a href="/learning" class="nav-link">Learning Dashboard</a></li>
             </ul>
             <div class="navbar-right">
@@ -105,19 +107,47 @@
                 <div class="emotion-state bored">😑 Bored</div>
                 <div class="emotion-state confused">🤔 Confused</div>
                 <div class="emotion-state frustrated">😤 Frustrated</div>
-                <div class="emotion-state unknown">❓ Unknown</div>
-                <div class="emotion-state noface">⚠️ No Face</div>
             </div>
         </section>
 
-        <section class="team-section">
+        <section class="team-section" id="team">
             <div class="section-header">
-                <h2>Team</h2>
+                <h2>Project Team & Contributors</h2>
+                <p class="section-subtitle">The creators powering EduMotion's AI models, backend infrastructure, and adaptive UI</p>
             </div>
-            <div class="team-members">
-                <div class="team-member" data-name="SACHIN SINGH" data-role="AI/ML">SACHIN SINGH / AI/ML</div>
-                <div class="team-member" data-name="DIVYA CHAUDHARY" data-role="Backend">DIVYA CHAUDHARY / Backend</div>
-                <div class="team-member" data-name="SHUBHAM SHARMA" data-role="Frontend">SHUBHAM SHARMA / Frontend</div>
+            <div class="team-grid">
+                <div class="team-card ai-card">
+                    <div class="team-avatar-wrapper ai-glow">
+                        <div class="team-avatar">🤖</div>
+                    </div>
+                    <div class="team-details">
+                        <span class="team-role ai-role">AI / ML</span>
+                        <h3 class="team-name">SACHIN SINGH</h3>
+                        <p class="team-role-desc">DeepFace emotion recognition, multimodal scoring & CNN posture models</p>
+                    </div>
+                </div>
+
+                <div class="team-card backend-card">
+                    <div class="team-avatar-wrapper backend-glow">
+                        <div class="team-avatar">⚙️</div>
+                    </div>
+                    <div class="team-details">
+                        <span class="team-role backend-role">BACKEND</span>
+                        <h3 class="team-name">DIVYA CHAUDHARY</h3>
+                        <p class="team-role-desc">FastAPI server, 24-combination adaptation matrix & asynchronous pipeline</p>
+                    </div>
+                </div>
+
+                <div class="team-card frontend-card">
+                    <div class="team-avatar-wrapper frontend-glow">
+                        <div class="team-avatar">💻</div>
+                    </div>
+                    <div class="team-details">
+                        <span class="team-role frontend-role">FRONTEND</span>
+                        <h3 class="team-name">SHUBHAM SHARMA</h3>
+                        <p class="team-role-desc">Dynamic adaptive theme engine, video streaming & interactive dashboard</p>
+                    </div>
+                </div>
             </div>
         </section>
     </main>

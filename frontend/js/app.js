@@ -386,17 +386,15 @@ function updateCurrentStateDisplay(state, confidence, source, processingTime) {
 
     if (!stateIndicator || !confidenceValue || !modeIndicator) return;
 
-    // Map emotion to display icon (4 states + unknown/no face)
+    // Map emotion to display icon (strictly 4 canonical states)
     const emotionIcons = {
-        ENGAGED:          "🎯",
-        BORED:            "😑",
-        CONFUSED:         "🤔",
-        FRUSTRATED:       "😤",
-        UNKNOWN:          "❓",
-        FACE_NOT_DETECTED:"⚠️",
+        ENGAGED:    "🎯",
+        BORED:      "😑",
+        CONFUSED:   "🤔",
+        FRUSTRATED: "😤",
     };
 
-    const icon = emotionIcons[state] || "❓";
+    const icon = emotionIcons[state] || "🎯";
 
     // Update state display
     stateIndicator.innerHTML = `${icon} ${state}`;
@@ -435,15 +433,14 @@ function applyAdaptationChanges(state, confidence) {
         "state-engaged",
         "state-bored",
         "state-confused",
-        "state-frustrated",
-        "state-unknown"
+        "state-frustrated"
     );
 
     // Add current state class (normalize to lowercase)
     if (state) {
         const normalized = state.toLowerCase();
         const valid = ["engaged", "bored", "confused", "frustrated"];
-        contentSection.classList.add(`state-${valid.includes(normalized) ? normalized : "unknown"}`);
+        contentSection.classList.add(`state-${valid.includes(normalized) ? normalized : "engaged"}`);
     }
 }
 

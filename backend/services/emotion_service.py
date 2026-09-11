@@ -11,7 +11,7 @@ class EmotionService:
     def __init__(self):
         self.cloud_service = CloudEmotionService()
         self.local_service = LocalEmotionService()
-        self.deepface_service = DeepFaceEmotionService(grace_period_seconds=8.0)
+        self.deepface_service = DeepFaceEmotionService()
         self.image_service = ImageService()
 
     async def predict(self, base64_image: str, mode: str = None):

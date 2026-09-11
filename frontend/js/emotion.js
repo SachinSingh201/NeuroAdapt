@@ -1,7 +1,7 @@
 /**
  * EduMotion - Emotion Processing Module
  *
- * Handles emotion normalization to 4 core states + unknown/face_not_detected.
+ * Handles emotion normalization to 4 core states + unknown.
  * Mapping per spec:
  *   happy/neutral/focused/calm -> engaged
  *   sad/tired                  -> bored
@@ -15,21 +15,15 @@ const EMOTION_MAP = {
     bored:            "BORED",
     confused:         "CONFUSED",
     frustrated:       "FRUSTRATED",
-    unknown:          "UNKNOWN",
-    face_not_detected:"FACE_NOT_DETECTED",
 
-    // DeepFace raw emotion aliases
+    // DeepFace raw emotion mappings
     happy:    "ENGAGED",
-    focused:  "ENGAGED",
-    calm:     "ENGAGED",
-    neutral:  "ENGAGED",
+    surprise: "ENGAGED",
+    neutral:  "BORED",
     sad:      "BORED",
-    tired:    "BORED",
+    fear:     "CONFUSED",
+    disgust:  "FRUSTRATED",
     angry:    "FRUSTRATED",
-    stressed: "FRUSTRATED",
-    fear:     "FRUSTRATED",
-    disgust:  "CONFUSED",
-    surprise: "UNKNOWN",
 };
 
 export function normalizeEmotionResponse(response) {
@@ -39,7 +33,7 @@ export function normalizeEmotionResponse(response) {
 
     const rawEmotion = (response.emotion || "engaged").toLowerCase();
     const confidence = Number(response.confidence || 0);
-    const source = response.source || "unknown";
+    const source = response.source || "deepface+stats";
     const processingTime = Number(response.processing_time_ms || 0);
     const posture = response.posture || "upright";
     const postureConfidence = Number(response.posture_confidence || 0);
@@ -65,18 +59,18 @@ export function normalizeEmotionResponse(response) {
 
 export function getDefaultEmotion() {
     return {
-        emotion: "unknown",
+        emotion: "engaged",
         posture: "upright",
-        learning_state: "UNKNOWN",
-        confidence: 0,
-        posture_confidence: 0,
-        theme: "neutral",
-        background: "none",
-        message: "No detection yet.",
+        learning_state: "ENGAGED",
+        confidence: 0.85,
+        posture_confidence: 0.80,
+        theme: "positive",
+        background: "engaged",
+        message: "Maintaining focus.",
         posture_tip: "Sit comfortably upright.",
         action: "maintain",
         assistance: "none",
-        source: "none",
+        source: "default",
         processing_time_ms: 0,
     };
 }

@@ -1175,7 +1175,6 @@ body.focus-mode[data-emotion="none"]::before { opacity: 0; }
 .state-bored      { border-color: rgba(96,165,250,0.35) !important; }
 .state-confused   { border-color: rgba(129,140,248,0.40) !important; }
 .state-frustrated { border-color: rgba(239,68,68,0.40)  !important; }
-.state-unknown    { border-color: rgba(113,128,150,0.25) !important; }
 
 /* ══════════════════════════════════════════════════
    Mode indicator — warning state (no face / unclear)
@@ -1273,16 +1272,10 @@ body.focus-mode[data-emotion="none"]::before { opacity: 0; }
     border-color: rgba(239, 68, 68, 0.45);
     background: rgba(127, 29, 29, 0.35);
 }
-.adaptation-banner.banner-unknown,
-.adaptation-banner.banner-face_not_detected {
-    border-color: rgba(113, 128, 150, 0.35);
-    background: rgba(25, 35, 55, 0.35);
-}
 
 /* Applied to #emotion-panel — border accent per 4 learning states */
 .state-engaged    { border-color: rgba(34, 197, 94, 0.5) !important; box-shadow: 0 0 15px rgba(34, 197, 94, 0.15); }
 .state-bored      { border-color: rgba(96, 165, 250, 0.5) !important; box-shadow: 0 0 15px rgba(96, 165, 250, 0.15); }
 .state-confused   { border-color: rgba(168, 85, 247, 0.5) !important; box-shadow: 0 0 15px rgba(168, 85, 247, 0.15); }
 .state-frustrated { border-color: rgba(239, 68, 68, 0.5) !important; box-shadow: 0 0 15px rgba(239, 68, 68, 0.15); }
-.state-unknown    { border-color: rgba(113, 128, 150, 0.3) !important; box-shadow: none; }
 

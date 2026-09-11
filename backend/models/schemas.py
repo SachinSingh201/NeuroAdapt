@@ -65,8 +65,6 @@ class EmotionPredictionResponse(BaseModel):
     learning_scores: Dict[str, float] = Field(default_factory=dict, description="Learning/posture statistics score vector (30% weight)")
     final_scores: Dict[str, float] = Field(default_factory=dict, description="Combined 70% DeepFace + 30% Learning score vector")
     final_emotion: str = Field(..., description="Final winning emotion state")
-    face_detected: bool = Field(False, description="Whether a face was detected in current frame")
-    face_status: str = Field("DETECTED", description="Status: DETECTED, GRACE_PERIOD, or NO_FACE_DETECTED")
     source: str = Field("deepface+stats", description="Prediction source")
     processing_time_ms: int = Field(0, description="Inference latency in milliseconds")
     adaptation: Dict[str, Any] = Field(default_factory=dict, description="Complete adaptation payload")
