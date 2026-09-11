@@ -1,28 +1,35 @@
 /**
  * EduMotion - Emotion Processing Module
- * 
- * Handles emotion normalization to strictly 4 classes:
- * engaged, bored, confused, frustrated.
+ *
+ * Handles emotion normalization to 4 core states + unknown/face_not_detected.
+ * Mapping per spec:
+ *   happy/neutral/focused/calm -> engaged
+ *   sad/tired                  -> bored
+ *   angry/fear/stressed        -> frustrated
+ *   disgust                    -> confused
+ *   surprise/low-conf          -> unknown
  */
 
 const EMOTION_MAP = {
-    engaged:    "ENGAGED",
-    bored:      "BORED",
-    confused:   "CONFUSED",
-    frustrated: "FRUSTRATED",
+    engaged:          "ENGAGED",
+    bored:            "BORED",
+    confused:         "CONFUSED",
+    frustrated:       "FRUSTRATED",
+    unknown:          "UNKNOWN",
+    face_not_detected:"FACE_NOT_DETECTED",
 
-    // Aliases / Fallbacks
-    happy:      "ENGAGED",
-    focused:    "ENGAGED",
-    calm:       "ENGAGED",
-    neutral:    "ENGAGED",
-    sad:        "BORED",
-    tired:      "BORED",
-    surprise:   "CONFUSED",
-    angry:      "FRUSTRATED",
-    stressed:   "FRUSTRATED",
-    fear:       "FRUSTRATED",
-    disgust:    "FRUSTRATED",
+    // DeepFace raw emotion aliases
+    happy:    "ENGAGED",
+    focused:  "ENGAGED",
+    calm:     "ENGAGED",
+    neutral:  "ENGAGED",
+    sad:      "BORED",
+    tired:    "BORED",
+    angry:    "FRUSTRATED",
+    stressed: "FRUSTRATED",
+    fear:     "FRUSTRATED",
+    disgust:  "CONFUSED",
+    surprise: "UNKNOWN",
 };
 
 export function normalizeEmotionResponse(response) {
@@ -58,14 +65,14 @@ export function normalizeEmotionResponse(response) {
 
 export function getDefaultEmotion() {
     return {
-        emotion: "engaged",
+        emotion: "unknown",
         posture: "upright",
-        learning_state: "ENGAGED",
+        learning_state: "UNKNOWN",
         confidence: 0,
         posture_confidence: 0,
-        theme: "positive",
-        background: "engaged",
-        message: "Maintaining current state.",
+        theme: "neutral",
+        background: "none",
+        message: "No detection yet.",
         posture_tip: "Sit comfortably upright.",
         action: "maintain",
         assistance: "none",

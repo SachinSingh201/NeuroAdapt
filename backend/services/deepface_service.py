@@ -15,17 +15,23 @@ if sys.platform == "win32":
 logger = logging.getLogger(__name__)
 
 # Canonical mapping from DeepFace raw 7 emotions -> 4 EduMotion states
+# Based on required emotion_map specification:
+#   happy/neutral/focused/calm -> engaged
+#   sad/tired                  -> bored
+#   angry/fear/stressed        -> frustrated
+#   disgust                    -> confused
+#   surprise/low-conf          -> unknown
 DEEPFACE_MAPPING = {
     "happy":    {"target": "engaged",    "base_weight": 0.90},
-    "surprise": {"target": "engaged",    "base_weight": 0.70},
     "neutral":  {"target": "bored",      "base_weight": 0.60},  # Ambiguous: learning stats resolve Bored vs Engaged
-    "sad":      {"target": "bored",      "base_weight": 0.55},
-    "fear":     {"target": "confused",   "base_weight": 0.75},
-    "disgust":  {"target": "frustrated", "base_weight": 0.80},
+    "sad":      {"target": "bored",      "base_weight": 0.75},
+    "fear":     {"target": "frustrated", "base_weight": 0.80},
+    "disgust":  {"target": "confused",   "base_weight": 0.80},
     "angry":    {"target": "frustrated", "base_weight": 0.90},
+    "surprise": {"target": "unknown",    "base_weight": 0.70},  # Low-signal -> unknown
 }
 
-TARGET_STATES = ["engaged", "bored", "confused", "frustrated"]
+TARGET_STATES = ["engaged", "bored", "confused", "frustrated", "unknown"]
 
 
 class DeepFaceEmotionService:
@@ -89,12 +95,16 @@ class DeepFaceEmotionService:
             img_h, img_w = cv_image.shape[:2]
             # When opencv backend fails to find a face, enforce_detection=False returns region covering ~whole frame with face_confidence=0.0
             is_full_frame = (face_w >= img_w * 0.95 and face_h >= img_h * 0.95)
-            
-            if face_conf is not None and face_conf <= 0.0:
-                face_detected = False
+
+            if face_conf is not None and face_conf > 0.0:
+                # Confidence > 0 means a face was actively detected by the detector,
+                # even if it's large (is_full_frame).
+                face_detected = (face_w >= 20 and face_h >= 20)
             elif is_full_frame:
+                # 0.0 confidence AND taking up the whole frame -> fail fallback
                 face_detected = False
             else:
+                # No confidence score, but gave a specific region -> valid detection
                 face_detected = (face_w >= 20 and face_h >= 20)
 
             dominant_emotion = str(data.get("dominant_emotion", "neutral")).lower()
@@ -172,9 +182,8 @@ class DeepFaceEmotionService:
         learning_scores = self.calculate_learning_scores(posture, posture_confidence)
 
         # ----------------------------------------------------
-        # 2. Face Detection & Grace Period Handling
+        # 2. Face Detection Handling (no grace period per spec)
         # ----------------------------------------------------
-        is_grace_period = False
         face_status_log = "DETECTED"
 
         if face_detected and raw_df_emotion:
@@ -191,28 +200,19 @@ class DeepFaceEmotionService:
             face_status_log = "DETECTED"
         else:
             self.consecutive_no_face += 1
-            # Check grace period against last valid detection
-            elapsed_since_valid = (now - self.last_valid_time) if self.last_valid_time > 0 else 999.0
-
-            if elapsed_since_valid <= self.grace_period_seconds and self.last_valid_time > 0:
-                is_grace_period = True
-                dominant_face_emotion = self.last_valid_emotion or "engaged"
-                face_confidence = max(0.35, round(self.last_valid_confidence * 0.85, 4))
-                active_prob_dist = getattr(self, "last_valid_prob_dist", {dominant_face_emotion: 1.0})
-                face_status_log = f"GRACE_PERIOD ({dominant_face_emotion})"
-            else:
-                # No face detected & grace period expired -> do not force facial emotion
-                dominant_face_emotion = None
-                face_confidence = 0.0
-                active_prob_dist = {}
-                face_status_log = "NO_FACE_DETECTED"
+            # Per spec: no face, invalid frame, or DeepFace failure -> face_not_detected / unknown.
+            # Never guess, reuse previous emotion, or assign random/default.
+            dominant_face_emotion = None
+            face_confidence = 0.0
+            active_prob_dist = {}
+            face_status_log = "NO_FACE_DETECTED"
 
         # ----------------------------------------------------
         # 3. Compute 70% Facial Scores from DeepFace
         # ----------------------------------------------------
-        facial_scores = {"engaged": 0.0, "bored": 0.0, "confused": 0.0, "frustrated": 0.0}
+        facial_scores = {"engaged": 0.0, "bored": 0.0, "confused": 0.0, "frustrated": 0.0, "unknown": 0.0}
 
-        if face_status_log in ("DETECTED",) or is_grace_period:
+        if face_status_log == "DETECTED":
             if active_prob_dist:
                 for emo_name, prob in active_prob_dist.items():
                     mapping = DEEPFACE_MAPPING.get(emo_name)
@@ -228,47 +228,56 @@ class DeepFaceEmotionService:
                         else:
                             target = "bored"
 
-                    facial_scores[target] += prob * weight
+                    if target in facial_scores:
+                        facial_scores[target] += prob * weight
             elif dominant_face_emotion:
                 mapping = DEEPFACE_MAPPING.get(dominant_face_emotion, {"target": "engaged", "base_weight": 0.70})
                 target = mapping["target"]
                 if dominant_face_emotion == "neutral":
                     target = "engaged" if learning_scores.get("engaged", 0.0) >= learning_scores.get("bored", 0.0) else "bored"
-                facial_scores[target] = face_confidence * mapping["base_weight"]
+                if target in facial_scores:
+                    facial_scores[target] = face_confidence * mapping["base_weight"]
 
-            # Normalize facial scores across the 4 states
+            # Normalize facial scores across the 5 states
             facial_total = sum(facial_scores.values())
             if facial_total > 0:
                 facial_scores = {k: round(v / facial_total, 4) for k, v in facial_scores.items()}
             else:
-                facial_scores = {"engaged": 0.25, "bored": 0.25, "confused": 0.25, "frustrated": 0.25}
+                facial_scores = {"engaged": 0.25, "bored": 0.25, "confused": 0.25, "frustrated": 0.25, "unknown": 0.0}
         else:
-            # NO_FACE_DETECTED -> do not force emotion, balanced neutral prior
-            facial_scores = {"engaged": 0.25, "bored": 0.25, "confused": 0.25, "frustrated": 0.25}
+            # NO_FACE_DETECTED -> return face_not_detected, no emotion scores
+            facial_scores = {"engaged": 0.0, "bored": 0.0, "confused": 0.0, "frustrated": 0.0, "unknown": 0.0}
 
         # ----------------------------------------------------
         # 4. Final Combined Scores: 70% DeepFace + 30% Learning Stats
         # ----------------------------------------------------
         final_scores = {}
         if face_status_log == "NO_FACE_DETECTED":
-            # When no face is detected and grace period expired, fall back to default state driven by learning stats
-            final_scores = {k: round(v, 4) for k, v in learning_scores.items()}
-            final_emotion = max(final_scores, key=final_scores.get)
-            final_confidence = final_scores[final_emotion]
+            # Per spec: no face -> face_not_detected. Never drive emotion from posture alone.
+            final_scores = {"engaged": 0.0, "bored": 0.0, "confused": 0.0, "frustrated": 0.0, "unknown": 0.0}
+            final_emotion = "face_not_detected"
+            final_confidence = 0.0
         else:
-            for state in TARGET_STATES:
+            # Only use learning stats for non-unknown states (surprise->unknown stays unknown)
+            for state in ["engaged", "bored", "confused", "frustrated"]:
                 score = 0.70 * facial_scores.get(state, 0.0) + 0.30 * learning_scores.get(state, 0.0)
                 final_scores[state] = round(score, 4)
+            # unknown stays pure facial signal (no posture contribution)
+            final_scores["unknown"] = round(0.70 * facial_scores.get("unknown", 0.0), 4)
 
             # Pick winning final emotion
             final_emotion = max(final_scores, key=final_scores.get)
             final_confidence = final_scores[final_emotion]
 
+            # Low-confidence or unclear prediction -> unknown
+            if final_confidence < 0.25:
+                final_emotion = "unknown"
+                final_confidence = 0.0
+
         return {
             "deepface_raw_emotion": dominant_face_emotion,
             "deepface_confidence": round(face_confidence, 4),
             "face_detected": face_detected,
-            "is_grace_period": is_grace_period,
             "face_status_log": face_status_log,
             "facial_scores": facial_scores,
             "learning_scores": learning_scores,

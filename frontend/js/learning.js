@@ -17,10 +17,10 @@
 // ─────────────────────────────────────────────────────────────
 
 const LessonConfig = {
-    processingInterval:  2500,   // ms between prediction checks
+    processingInterval:  1500,   // ms between prediction checks
     videoWarmupDelay:    1000,   // ms to wait after camera opens before first capture
     maxVideoWaitMs:      8000,   // max ms to wait for video ready
-    historyWindowSize:   5,      // rolling window size for temporal smoothing
+    historyWindowSize:   3,      // lightweight rolling window size for temporal smoothing
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -42,10 +42,12 @@ const LearningState = {
 // ─────────────────────────────────────────────────────────────
 
 const EMOTION_DISPLAY = {
-    engaged:    { icon: "🎯", label: "Engaged" },
-    bored:      { icon: "😑", label: "Bored" },
-    confused:   { icon: "🤔", label: "Confused" },
-    frustrated: { icon: "😤", label: "Frustrated" },
+    engaged:          { icon: "🎯", label: "Engaged" },
+    bored:            { icon: "😑", label: "Bored" },
+    confused:         { icon: "🤔", label: "Confused" },
+    frustrated:       { icon: "😤", label: "Frustrated" },
+    unknown:          { icon: "❓", label: "Unknown" },
+    face_not_detected:{ icon: "⚠️", label: "No Face" },
 };
 
 const POSTURE_RAW_LABELS = {
@@ -78,11 +80,11 @@ let manualEmotionOverride = null;
  * Sets body[data-emotion] which is styled via CSS.
  */
 function applyEmotionTheme(autoEmotion) {
-    const rawEmotion = manualEmotionOverride || autoEmotion || "none";
-    const emotion = rawEmotion.toLowerCase();
-    
-    // Ensure only the 4 allowed emotions or 'none' are applied
-    const validEmotion = EMOTION_DISPLAY[emotion] ? emotion : "none";
+    const emotion = (autoEmotion || "none").toLowerCase();
+
+    // Ensure only valid emotion states are applied; face_not_detected/unknown -> "none"
+    const validForTheme = ["engaged", "bored", "confused", "frustrated"];
+    const validEmotion = validForTheme.includes(emotion) ? emotion : "none";
     document.body.setAttribute("data-emotion", validEmotion);
     updateEmotionButtonIndicator(validEmotion, manualEmotionOverride !== null);
 }
@@ -360,7 +362,7 @@ async function sendFrameToBackend(base64Image, frameNum) {
 // ─────────────────────────────────────────────────────────────
 
 function updateDetectionUI(result) {
-    const rawEmotion = (result.emotion || result.final_emotion || "engaged").toLowerCase();
+    const rawEmotion = (result.emotion || result.final_emotion || "unknown").toLowerCase();
     const rawPosture = (result.posture || "upright").toLowerCase();
     const confidence = Number(result.confidence || 0);
     const postureConf = Number(result.posture_confidence || 0);
@@ -382,8 +384,18 @@ function updateDetectionUI(result) {
     // Get smoothed stable prediction from backend history
     const stable = getStablePrediction();
 
-    // Determine active emotion: respect manual emotion override if user set one
-    const activeEmotion = manualEmotionOverride || stable.emotion;
+    // Backend ALWAYS overrides manual selection when auto detection is running.
+    // Per spec: manual emotion is only a temporary/default; backend result must override.
+    const isNoFace = faceStatus === "NO_FACE_DETECTED" || rawEmotion === "face_not_detected";
+    const isUnclear = rawEmotion === "unknown";
+
+    if (!isNoFace && !isUnclear && manualEmotionOverride !== null) {
+        // Clear manual mode UI selection since backend overrides it
+        manualEmotionOverride = null;
+        document.querySelectorAll(".emotion-option").forEach(b => b.classList.remove("active"));
+    }
+
+    const activeEmotion = isNoFace ? rawEmotion : stable.emotion;
 
     // Update Monitor UI with backend source of truth
     updateStateDisplay(activeEmotion, stable.posture, confidence, postureConf, faceStatus, result.deepface_emotion);
@@ -392,9 +404,7 @@ function updateDetectionUI(result) {
     applyEmotionTheme(activeEmotion);
 
     // Display adaptive message and posture tip from backend response
-    if (!manualEmotionOverride) {
-        showAdaptationBanner(result.message, result.posture_tip, activeEmotion);
-    }
+    showAdaptationBanner(result.message, result.posture_tip, activeEmotion);
 }
 
 /**
@@ -408,7 +418,9 @@ function getStablePrediction() {
     const postureCounts = {};
 
     hist.forEach((item) => {
-        emotionCounts[item.emotion] = (emotionCounts[item.emotion] || 0) + 1;
+        // Give genuine frustrated/confused predictions double weight so they aren't suppressed by smoothing
+        const weight = (item.emotion === "frustrated" || item.emotion === "confused") && item.confidence >= 0.5 ? 2 : 1;
+        emotionCounts[item.emotion] = (emotionCounts[item.emotion] || 0) + weight;
         postureCounts[item.posture] = (postureCounts[item.posture] || 0) + 1;
     });
 
@@ -428,23 +440,20 @@ function updateStateDisplay(emotion, posture, emotionConf, postureConf, faceStat
     const postureIconEl  = document.getElementById("posture-icon");
     const panel          = document.getElementById("emotion-panel");
 
-    const emotionInfo = EMOTION_DISPLAY[emotion] || EMOTION_DISPLAY.engaged;
+    const emotionInfo = EMOTION_DISPLAY[emotion] || EMOTION_DISPLAY.unknown;
     const formattedPosture = POSTURE_RAW_LABELS[posture] || posture.replace(/_/g, " ");
     const postureIcon = POSTURE_ICONS_BY_NAME[posture] || "🧍";
 
     if (stateEl) {
-        if (faceStatus === "NO_FACE_DETECTED" && !manualEmotionOverride) {
-            stateEl.textContent = `⚠️ No Face Detected`;
-        } else {
-            stateEl.textContent = `${emotionInfo.icon} ${emotionInfo.label}`;
-        }
+        stateEl.textContent = `${emotionInfo.icon} ${emotionInfo.label}`;
     }
     if (rawLabelEl) rawLabelEl.textContent = formattedPosture;
 
     if (confEl) {
-        const confPct = Math.round(emotionConf * 100);
-        confEl.textContent = `${confPct}%`;
-        confEl.style.color = confPct >= 50 ? "#22c55e" : "#f59e0b";
+        const isNoSignal = emotion === "face_not_detected" || emotion === "unknown";
+        const confPct = isNoSignal ? "—" : `${Math.round(emotionConf * 100)}%`;
+        confEl.textContent = confPct;
+        confEl.style.color = isNoSignal ? "#718096" : (emotionConf >= 0.5 ? "#22c55e" : "#f59e0b");
     }
 
     if (postureTextEl) postureTextEl.textContent = formattedPosture;
@@ -456,17 +465,26 @@ function updateStateDisplay(emotion, posture, emotionConf, postureConf, faceStat
 
     if (modeEl) {
         if (manualEmotionOverride) {
-            modeEl.textContent = "MANUAL";
+            modeEl.textContent = "PREVIEW";
             modeEl.className   = "mode-indicator manual";
+        } else if (faceStatus === "NO_FACE_DETECTED" || emotion === "face_not_detected") {
+            modeEl.textContent = "NO FACE";
+            modeEl.className   = "mode-indicator warning";
+        } else if (emotion === "unknown") {
+            modeEl.textContent = "UNCLEAR";
+            modeEl.className   = "mode-indicator warning";
         } else {
-            modeEl.textContent = faceStatus === "NO_FACE_DETECTED" ? "NO FACE" : "AUTO";
-            modeEl.className   = faceStatus === "NO_FACE_DETECTED" ? "mode-indicator warning" : "mode-indicator auto";
+            modeEl.textContent = "AUTO";
+            modeEl.className   = "mode-indicator auto";
         }
     }
 
     if (panel) {
-        panel.classList.remove("state-engaged", "state-bored", "state-confused", "state-frustrated");
-        panel.classList.add(`state-${emotion}`);
+        panel.classList.remove("state-engaged", "state-bored", "state-confused", "state-frustrated", "state-unknown", "state-face_not_detected");
+        const panelClass = ["engaged", "bored", "confused", "frustrated"].includes(emotion)
+            ? `state-${emotion}`
+            : "state-unknown";
+        panel.classList.add(panelClass);
     }
 }
 
@@ -506,7 +524,7 @@ function resetDisplay() {
     }
     if (postureIconEl) postureIconEl.textContent = "🧍";
     if (banner) banner.style.display = "none";
-    if (panel) panel.classList.remove("state-engaged", "state-bored", "state-confused", "state-frustrated");
+    if (panel) panel.classList.remove("state-engaged", "state-bored", "state-confused", "state-frustrated", "state-unknown");
 
     if (!manualEmotionOverride) {
         document.body.setAttribute("data-emotion", "none");

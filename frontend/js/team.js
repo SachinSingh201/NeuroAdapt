@@ -7,15 +7,15 @@
  */
 export const TEAM_MEMBERS = [
     {
-        name: "Member 1",
+        name: "SACHIN SINGH",
         role: "AI/ML"
     },
     {
-        name: "Member 2",
+        name: "DIVYA CHAUDHARY",
         role: "Backend"
     },
     {
-        name: "Member 3",
+        name: "SHUBHAM SHARMA",
         role: "Frontend"
     }
 ];

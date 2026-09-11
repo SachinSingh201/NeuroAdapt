@@ -374,7 +374,7 @@ function getStableEmotion() {
 
 /**
  * Update current state display in the UI
- * @param {string} state - Learning state (CALM, HAPPY, etc.)
+ * @param {string} state - Learning state (ENGAGED, BORED, CONFUSED, FRUSTRATED)
  * @param {number} confidence - Prediction confidence
  * @param {string} source - Inference source (cloud, local, manual)
  * @param {number} processingTime - Processing time in ms
@@ -386,17 +386,17 @@ function updateCurrentStateDisplay(state, confidence, source, processingTime) {
 
     if (!stateIndicator || !confidenceValue || !modeIndicator) return;
 
-    // Map emotion to display icon
+    // Map emotion to display icon (4 states + unknown/no face)
     const emotionIcons = {
-        CALM: "😐",
-        HAPPY: "🙂",
-        FOCUSED: "😌",
-        STRESSED: "😟",
-        TIRED: "😫",
-        CONFUSED: "😕",
+        ENGAGED:          "🎯",
+        BORED:            "😑",
+        CONFUSED:         "🤔",
+        FRUSTRATED:       "😤",
+        UNKNOWN:          "❓",
+        FACE_NOT_DETECTED:"⚠️",
     };
 
-    const icon = emotionIcons[state] || "😐";
+    const icon = emotionIcons[state] || "❓";
 
     // Update state display
     stateIndicator.innerHTML = `${icon} ${state}`;
@@ -412,19 +412,18 @@ function updateCurrentStateDisplay(state, confidence, source, processingTime) {
     }
 
     // Show low confidence warning
-    const confidenceText = document.getElementById("confidence-value");
-    if (confidenceText) {
+    if (confidenceValue) {
         if (confidence < 0.55) {
-            confidenceText.style.color = "#e53e3e";
+            confidenceValue.style.color = "#e53e3e";
         } else {
-            confidenceText.style.color = "var(--primary-color, #22c55e)";
+            confidenceValue.style.color = "var(--primary-color, #22c55e)";
         }
     }
 }
 
 /**
  * Apply adaptation changes to the UI based on current emotion state
- * @param {string} state - Learning state
+ * @param {string} state - Learning state (ENGAGED, BORED, CONFUSED, FRUSTRATED)
  * @param {number} confidence - Prediction confidence
  */
 function applyAdaptationChanges(state, confidence) {
@@ -433,80 +432,29 @@ function applyAdaptationChanges(state, confidence) {
 
     // Remove any existing state classes
     contentSection.classList.remove(
-        "state-calm",
-        "state-happy",
-        "state-focused",
-        "state-stressed",
-        "state-tired",
-        "state-confused"
+        "state-engaged",
+        "state-bored",
+        "state-confused",
+        "state-frustrated",
+        "state-unknown"
     );
 
-    // Add current state class
+    // Add current state class (normalize to lowercase)
     if (state) {
-        contentSection.classList.add(`state-${state.toLowerCase()}`);
+        const normalized = state.toLowerCase();
+        const valid = ["engaged", "bored", "confused", "frustrated"];
+        contentSection.classList.add(`state-${valid.includes(normalized) ? normalized : "unknown"}`);
     }
-
-    // Show confidence-based message
-    showStateMessage(state, confidence);
 }
 
 /**
- * Show state-specific message
+ * Show state-specific message (deprecated — messages now come from backend)
  * @param {string} state - Learning state
  * @param {number} confidence - Prediction confidence
  */
 function showStateMessage(state, confidence) {
-    const messageDiv = document.createElement("div");
-    messageDiv.style.marginTop = "1rem";
-    messageDiv.style.padding = "0.75rem";
-    messageDiv.style.borderRadius = "6px";
-    messageDiv.style.fontSize = "0.75rem";
-
-    const messages = {
-        CALM: {
-            text: "You're in a steady learning state.",
-            color: "#4a5568",
-        },
-        HAPPY: {
-            text: "Great! You're engaged with the lesson.",
-            color: "#2d3748",
-        },
-        FOCUSED: {
-            text: "You're focused. Keep going.",
-            color: "#2d3748",
-        },
-        STRESSED: {
-            text: "Take a moment. You can review this concept at your own pace.",
-            color: "#e53e3e",
-        },
-        TIRED: {
-            text: "You may want to take a short break before continuing.",
-            color: "#eab308",
-        },
-        CONFUSED: {
-            text: "Would you like a simpler explanation?",
-            color: "#2d3748",
-        },
-    };
-
-    const msg = messages[state] || messages.CALM;
-
-    if (confidence < 0.55) {
-        messageDiv.textContent = "Low confidence — maintaining previous state";
-        messageDiv.style.color = "#e53e3e";
-        messageDiv.style.backgroundColor = "#fef2f2";
-        messageDiv.style.border = "1px solid #feb2b2";
-    } else {
-        messageDiv.textContent = msg.text;
-        messageDiv.style.color = msg.color;
-        messageDiv.style.backgroundColor = "white";
-    }
-
-    // Remove any existing message
-    const existing = contentSection.queryStateMsg();
-    if (existing) existing.remove();
-
-    contentSection.appendChild(messageDiv);
+    // No-op: adaptation messages are now sourced from backend API response
+    // and shown via the adaptation-banner in learning.js
 }
 
 /**
@@ -530,8 +478,8 @@ function updateModeIndicator() {
  * Show manual mode message
  */
 function showManualModeMessage() {
-    // Simple visual feedback
-    alert("Manual mode active - you can select emotions to demonstrate UI adaptations");
+    // Simple visual feedback — avoid blocking alert()
+    console.log("[EduMotion] Manual mode active.");
 }
 
 /**
