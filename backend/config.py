@@ -39,8 +39,8 @@ class Config:
     LOCAL_MODEL_PATH = os.path.join(os.path.dirname(__file__), "models", "emotion_cnn.pkl")
 
     # Processing Settings
-    PROCESSING_INTERVAL_MS = int(os.getenv("PROCESSING_INTERVAL_MS", 1500))
-    MIN_CONFIDENCE = float(os.getenv("MIN_CONFIDENCE_THRESHOLD", 0.40))
+    PROCESSING_INTERVAL_MS = int(os.getenv("PROCESSING_INTERVAL_MS", 5000))
+    MIN_CONFIDENCE = float(os.getenv("MIN_CONFIDENCE_THRESHOLD", 0.35))
     STABLE_PREDICTIONS_REQUIRED = int(os.getenv("STABLE_PREDICTIONS_REQUIRED", 3))
     TEMPORAL_WINDOW_SIZE = int(os.getenv("TEMPORAL_WINDOW_SIZE", 5))
 
