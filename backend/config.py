@@ -8,7 +8,7 @@ class Config:
     # Project Info
     PROJECT_NAME = os.getenv("PROJECT_NAME", "EduMotion")
     VERSION = os.getenv("VERSION", "1.0.0")
-    DEBUG = os.getenv("DEBUG_MODE", "true").lower() == "true"
+    DEBUG = os.getenv("DEBUG_MODE", "false").lower() == "true"
 
     # Emotion Service Mode
     # Possible values: "cloud", "local", "auto"
@@ -17,16 +17,16 @@ class Config:
     # --------------------------------------------------------
     # Roboflow Posture Detection API (cloud service)
     # --------------------------------------------------------
-    ROBOFLOW_API_KEY = os.getenv("ROBOFLOW_API_KEY", "YClVCZs2pjD71cFXfsNm")
-    ROBOFLOW_WORKSPACE = os.getenv("ROBOFLOW_WORKSPACE", "sachin-singh-g50va")
+    ROBOFLOW_API_KEY = os.getenv("ROBOFLOW_API_KEY", "") or os.getenv("EMOTION_API_KEY", "")
+    ROBOFLOW_WORKSPACE = os.getenv("ROBOFLOW_WORKSPACE", "")
     ROBOFLOW_WORKFLOW_ID = os.getenv(
         "ROBOFLOW_WORKFLOW_ID",
         "sitting-posture-classification-6vwq1-kbzhk"
     )
     ROBOFLOW_API_URL = (
         f"https://serverless.roboflow.com/infer/workflows/"
-        f"{os.getenv('ROBOFLOW_WORKSPACE', 'sachin-singh-g50va')}/"
-        f"{os.getenv('ROBOFLOW_WORKFLOW_ID', 'sitting-posture-classification-6vwq1-kbzhk')}"
+        f"{ROBOFLOW_WORKSPACE}/"
+        f"{ROBOFLOW_WORKFLOW_ID}"
     )
 
     # Legacy cloud API (kept for compatibility, unused when Roboflow is active)

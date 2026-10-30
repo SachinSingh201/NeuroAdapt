@@ -22,7 +22,14 @@ venv.bak/
 
 # Environment variables & secrets
 .env
+.env.*
 !.env.example
+*.pem
+*.key
+*.cert
+credentials.json
+secrets.txt
+adaptation_test.txt
 
 # IDEs and Editors
 .vscode/

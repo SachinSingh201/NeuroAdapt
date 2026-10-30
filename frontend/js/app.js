@@ -396,8 +396,8 @@ function updateCurrentStateDisplay(state, confidence, source, processingTime) {
 
     const icon = emotionIcons[state] || "🎯";
 
-    // Update state display
-    stateIndicator.innerHTML = `${icon} ${state}`;
+    // Update state display (safe textContent to prevent DOM XSS)
+    stateIndicator.textContent = `${icon} ${state}`;
     confidenceValue.textContent = `${Math.round(confidence * 100)}%`;
 
     // Update mode indicator

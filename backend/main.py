@@ -12,6 +12,7 @@ if sys.platform == "win32":
         pass
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -54,6 +55,30 @@ app = FastAPI(
     version=Config.VERSION,
     description="EduMotion - Emotion-Aware Dynamic UI/UX System",
 )
+
+# ============================================================
+# SECURITY & CORS MIDDLEWARE
+# ============================================================
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://127.0.0.1:8000",
+        "http://localhost:8000",
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
 
 
 # ============================================================
@@ -247,7 +272,7 @@ async def predict_emotion(
         logger.exception("Error in emotion prediction")
         raise HTTPException(
             status_code=500,
-            detail=str(e)
+            detail="Internal error during emotion prediction."
         )
 
 
@@ -352,11 +377,10 @@ async def predict_emotion_base64(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[EduMotion] ERROR in base64 prediction: {e}", flush=True)
         logger.exception("Error in base64 emotion prediction")
         raise HTTPException(
             status_code=500,
-            detail=str(e)
+            detail="Internal error during base64 emotion prediction."
         )
 
 
@@ -471,7 +495,7 @@ async def evaluate_adaptation(
         logger.exception("Error in adaptation evaluation")
         raise HTTPException(
             status_code=500,
-            detail=str(e)
+            detail="Internal error evaluating adaptation."
         )
 
 

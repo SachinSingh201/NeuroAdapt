@@ -180,7 +180,7 @@ pip install -r requirements.txt
 
    # Roboflow Sitting Posture Classification (Cloud)
    ROBOFLOW_API_KEY="your_roboflow_api_key"
-   ROBOFLOW_WORKSPACE="sachin-singh-g50va"
+   ROBOFLOW_WORKSPACE="your_workspace_id"
    ROBOFLOW_WORKFLOW_ID="sitting-posture-classification-6vwq1-kbzhk"
 
    # Processing Settings
@@ -191,7 +191,7 @@ pip install -r requirements.txt
    ```
 
 > [!NOTE]
-> The default credentials in `.env.example` connect directly to the preconfigured Roboflow posture workflow. If you prefer to test purely offline, set `EMOTION_MODE="local"` or use the **Manual Theme Selector** on the dashboard.
+> Add your Roboflow credentials in `.env` to enable cloud posture classification. If you prefer to test purely offline, set `EMOTION_MODE="local"` or use the **Manual Theme Selector** on the dashboard.
 
 ---
 
