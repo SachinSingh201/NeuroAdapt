@@ -1,5 +1,5 @@
 /**
- * EduMotion - Emotion Processing Module
+ * NeuroAdapt - Emotion Processing Module
  *
  * Handles emotion normalization to 4 core states + unknown.
  * Mapping per spec:

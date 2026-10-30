@@ -6,7 +6,7 @@ load_dotenv()
 
 class Config:
     # Project Info
-    PROJECT_NAME = os.getenv("PROJECT_NAME", "EduMotion")
+    PROJECT_NAME = os.getenv("PROJECT_NAME", "NeuroAdapt")
     VERSION = os.getenv("VERSION", "1.0.0")
     DEBUG = os.getenv("DEBUG_MODE", "false").lower() == "true"
 

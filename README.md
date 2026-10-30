@@ -1,11 +1,11 @@
-# 🎓 EduMotion - Emotion-Aware & Posture-Adaptive Learning Platform
+# 🎓 NeuroAdapt - Emotion-Aware & Posture-Adaptive Learning Platform
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104.1-009688.svg?style=flat&logo=FastAPI&logoColor=white)](https://fastapi.tiangolo.com)
 [![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org/)
 [![OpenCV](https://img.shields.io/badge/OpenCV-Computer%20Vision-5C3EE8.svg?style=flat&logo=opencv&logoColor=white)](https://opencv.org/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**EduMotion** is an intelligent e-learning system that detects student posture and emotional engagement in real time using computer vision. By continuously analyzing webcam frames, EduMotion dynamically adapts the learning interface (visual styling, ergonomic notifications, assistance density, and focus mode) to optimize focus, reduce fatigue, and support individualized learning.
+**NeuroAdapt** is an intelligent e-learning system that detects student posture and emotional engagement in real time using computer vision. By continuously analyzing webcam frames, NeuroAdapt dynamically adapts the learning interface (visual styling, ergonomic notifications, assistance density, and focus mode) to optimize focus, reduce fatigue, and support individualized learning.
 
 ---
 
@@ -37,7 +37,7 @@
                │ (Base64 JPEG Frames via fetch)
                ▼
    ┌───────────────────────┐
-   │  EduMotion Frontend   │ (Vanilla HTML5 / CSS3 / ES6 JS)
+   │  NeuroAdapt Frontend   │ (Vanilla HTML5 / CSS3 / ES6 JS)
    │  - Video Player       │
    │  - Detection Monitor  │
    │  - Dynamic Theme Engine
@@ -68,7 +68,7 @@
 ## 📁 Project Structure
 
 ```text
-edumotion/
+neuroadapt/
 ├── backend/
 │   ├── models/
 │   │   ├── emotion_cnn.pkl       # Pretrained local CNN model
@@ -105,7 +105,7 @@ edumotion/
 
 ## 🚀 Getting Started
 
-Follow these steps to set up and run EduMotion locally on your machine.
+Follow these steps to set up and run NeuroAdapt locally on your machine.
 
 ### 1. Prerequisites
 
@@ -120,7 +120,7 @@ Follow these steps to set up and run EduMotion locally on your machine.
 
 ```bash
 git clone <your-repository-url>
-cd edumotion
+cd neuroadapt
 ```
 
 ---
@@ -240,7 +240,7 @@ Once the server is running, navigate to:
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/` | Renders the EduMotion landing page |
+| `GET` | `/` | Renders the NeuroAdapt landing page |
 | `GET` | `/learning` | Renders the adaptive learning dashboard |
 | `GET` | `/api/health` | Service health status and model load status |
 | `GET` | `/api/emotion/status` | Operational status of emotion/posture services |
@@ -258,7 +258,7 @@ Once the server is running, navigate to:
   ```bash
   uvicorn backend.main:app --host 127.0.0.1 --port 8080 --reload
   ```
-- **TensorFlow / Local Model Issues**: If running without a GPU or encountering TensorFlow build warnings, EduMotion will run in Cloud or Auto mode using the Roboflow endpoint seamlessly.
+- **TensorFlow / Local Model Issues**: If running without a GPU or encountering TensorFlow build warnings, NeuroAdapt will run in Cloud or Auto mode using the Roboflow endpoint seamlessly.
 
 ---
 

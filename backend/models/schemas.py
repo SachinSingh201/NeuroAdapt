@@ -69,7 +69,7 @@ def HealthCheck(
     local_model_loaded: bool
 ) -> SystemStatus:
     """
-    Returns the current health/status of the EduMotion system.
+    Returns the current health/status of the NeuroAdapt system.
     """
 
     # Determine overall system status

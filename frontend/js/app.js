@@ -1,5 +1,5 @@
 /**
- * EduMotion - Application Controller
+ * NeuroAdapt - Application Controller
  * 
  * Main application initialization and global state management.
  */
@@ -476,7 +476,7 @@ function updateModeIndicator() {
  */
 function showManualModeMessage() {
     // Simple visual feedback — avoid blocking alert()
-    console.log("[EduMotion] Manual mode active.");
+    console.log("[NeuroAdapt] Manual mode active.");
 }
 
 /**

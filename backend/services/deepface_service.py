@@ -13,7 +13,7 @@ if sys.platform == "win32":
 
 logger = logging.getLogger(__name__)
 
-# Canonical mapping from DeepFace raw 7 emotions -> 4 EduMotion states
+# Canonical mapping from DeepFace raw 7 emotions -> 4 NeuroAdapt states
 DEEPFACE_MAPPING = {
     "happy":    {"target": "engaged",    "base_weight": 0.90},
     "surprise": {"target": "engaged",    "base_weight": 0.70},

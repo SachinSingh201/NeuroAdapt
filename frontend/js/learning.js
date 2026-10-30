@@ -1,5 +1,5 @@
 /**
- * EduMotion - Learning Page Module (Combined CNN Emotion + Online Posture)
+ * NeuroAdapt - Learning Page Module (Combined CNN Emotion + Online Posture)
  *
  * LAYOUT:
  *  - #youtube-iframe  → LEFT section (ML video & lesson content)
@@ -125,7 +125,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupEmotionDropdown();
     setupYouTubePlayer();
     setupFocusMode();
-    console.log("[EduMotion] Dashboard initialized with CNN Emotion + Posture pipeline.");
+    console.log("[NeuroAdapt] Dashboard initialized with CNN Emotion + Posture pipeline.");
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -154,7 +154,7 @@ async function startAutoDetection() {
     const ready = await waitForVideoReady();
     if (!ready) {
         setStatus("Camera stream ready timeout. Please restart.");
-        console.warn("[EduMotion] Video stream ready timeout.");
+        console.warn("[NeuroAdapt] Video stream ready timeout.");
         return;
     }
 
@@ -163,7 +163,7 @@ async function startAutoDetection() {
     setElDisplay("stop-auto",  true);
 
     setStatus("Active — analyzing emotion & posture...");
-    console.log(`[EduMotion] Auto detection active. Interval: ${LessonConfig.processingInterval}ms`);
+    console.log(`[NeuroAdapt] Auto detection active. Interval: ${LessonConfig.processingInterval}ms`);
 
     startProcessingLoop();
 }
@@ -186,7 +186,7 @@ function stopAutoDetection() {
 
     resetDisplay();
     setStatus("");
-    console.log("[EduMotion] Auto detection stopped and webcam stream closed.");
+    console.log("[NeuroAdapt] Auto detection stopped and webcam stream closed.");
 }
 
 /**
@@ -218,16 +218,16 @@ async function startCamera() {
             try {
                 await webcamVideo.play();
             } catch (playErr) {
-                console.warn("[EduMotion] video.play() warning:", playErr);
+                console.warn("[NeuroAdapt] video.play() warning:", playErr);
             }
         }
         if (placeholder) placeholder.style.display = "none";
         if (badge)       badge.style.display        = "inline-block";
 
-        console.log("[EduMotion] Camera stream acquired.");
+        console.log("[NeuroAdapt] Camera stream acquired.");
         return true;
     } catch (err) {
-        console.error("[EduMotion] Camera access error:", err);
+        console.error("[NeuroAdapt] Camera access error:", err);
         setStatus("Camera permission denied or camera not found.");
         alert("Camera permission is required for emotion & posture detection. Please allow camera access in your browser settings.");
         return false;
@@ -242,7 +242,7 @@ function stopCameraStream() {
         try {
             LearningState.videoStream.getTracks().forEach((track) => track.stop());
         } catch (e) {
-            console.warn("[EduMotion] Error stopping tracks:", e);
+            console.warn("[NeuroAdapt] Error stopping tracks:", e);
         }
         LearningState.videoStream = null;
     }
@@ -322,7 +322,7 @@ async function processNextFrame() {
         const base64Image = canvas.toDataURL("image/jpeg", 0.80);
         await sendFrameToBackend(base64Image, frameNum);
     } catch (err) {
-        console.error(`[EduMotion] Frame #${frameNum} processing error:`, err);
+        console.error(`[NeuroAdapt] Frame #${frameNum} processing error:`, err);
     } finally {
         LearningState.isProcessingRequest = false;
     }
@@ -342,7 +342,7 @@ async function sendFrameToBackend(base64Image, frameNum) {
 
         if (!response.ok) {
             const errText = await response.text();
-            console.error(`[EduMotion] HTTP ${response.status}: ${errText}`);
+            console.error(`[NeuroAdapt] HTTP ${response.status}: ${errText}`);
             setStatus(`Backend error (HTTP ${response.status})`);
             return;
         }
@@ -351,7 +351,7 @@ async function sendFrameToBackend(base64Image, frameNum) {
         updateDetectionUI(result);
         setStatus(`Frame #${frameNum} evaluated (${elapsed}ms)`);
     } catch (err) {
-        console.error(`[EduMotion] Network error on frame #${frameNum}:`, err);
+        console.error(`[NeuroAdapt] Network error on frame #${frameNum}:`, err);
         setStatus("Network error connecting to backend");
     }
 }
@@ -599,7 +599,7 @@ function setupEmotionDropdown() {
                 }
             });
 
-            console.log(`[EduMotion] Manual preview applied: ${rawVal} (live CNN detection will auto-apply next backend result)`);
+            console.log(`[NeuroAdapt] Manual preview applied: ${rawVal} (live CNN detection will auto-apply next backend result)`);
         });
     });
 
@@ -625,7 +625,7 @@ function setupEmotionDropdown() {
                 applyEmotionTheme(stable.emotion);
             }
 
-            console.log("[EduMotion] Manual preview cleared — live Auto detection active.");
+            console.log("[NeuroAdapt] Manual preview cleared — live Auto detection active.");
         });
     }
 }
@@ -659,7 +659,7 @@ function setupYouTubePlayer() {
             return;
         }
         iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&showinfo=0&enablejsapi=1`;
-        console.log(`[EduMotion] Loaded YouTube Video ID: ${videoId}`);
+        console.log(`[NeuroAdapt] Loaded YouTube Video ID: ${videoId}`);
     }
 
     loadBtn.addEventListener("click", loadVideoFromInput);
@@ -685,7 +685,7 @@ function setupFocusMode() {
         focusBtn.innerHTML = isFocus ? "⬛ Exit Focus" : "🌑 Focus Mode";
         focusBtn.classList.toggle("active", isFocus);
         focusBtn.setAttribute("aria-pressed", String(isFocus));
-        console.log(`[EduMotion] Focus mode: ${isFocus ? "ON" : "OFF"}`);
+        console.log(`[NeuroAdapt] Focus mode: ${isFocus ? "ON" : "OFF"}`);
     });
 }
 

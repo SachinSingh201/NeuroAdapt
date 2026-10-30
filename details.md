@@ -1,4 +1,4 @@
-# EduMotion: Multimodal Emotion & Posture-Aware Adaptive Learning Platform
+# NeuroAdapt: Multimodal Emotion & Posture-Aware Adaptive Learning Platform
 ## Comprehensive Technical Project Report & Architectural Documentation
 
 ---
@@ -8,12 +8,12 @@
 ### 1.1 Problem Statement
 Traditional Computer-Based Training (CBT) and online learning platforms (e.g., Coursera, Udemy, edX) deliver identical user experiences regardless of the learner's cognitive, physiological, or emotional state. When students encounter difficult concepts, they often experience **frustration** or **confusion**; when content lacks engagement, they experience **boredom** or fatigue; and prolonged poor sitting habits cause physical strain. Without real-time human instructor observation, these negative states lead to high course drop-out rates, cognitive overload, and diminished knowledge retention.
 
-### 1.2 The EduMotion Solution
-**EduMotion** is an intelligent, real-time, closed-loop educational technology platform that bridges the gap between digital content and human affect. By combining computer vision, deep learning facial emotion recognition, sitting posture classification, and statistical cognitive heuristics, EduMotion continuously evaluates learner engagement and dynamically reconfigures the learning interface in real-time.
+### 1.2 The NeuroAdapt Solution
+**NeuroAdapt** is an intelligent, real-time, closed-loop educational technology platform that bridges the gap between digital content and human affect. By combining computer vision, deep learning facial emotion recognition, sitting posture classification, and statistical cognitive heuristics, NeuroAdapt continuously evaluates learner engagement and dynamically reconfigures the learning interface in real-time.
 
 ```
 +---------------------------------------------------------------------------------------+
-|                                    EDUMOTION VISION                                   |
+|                                    NEUROADAPT VISION                                   |
 |                                                                                       |
 |   [Learner Webcam] ---> [DeepFace + Posture CNN] ---> [Multimodal Fusion Engine]      |
 |                                                                   |                   |
@@ -26,7 +26,7 @@ Traditional Computer-Based Training (CBT) and online learning platforms (e.g., C
 
 ## 2. System Architecture & Core Workflow
 
-EduMotion operates on a high-throughput, asynchronous client-server architecture engineered for sub-second affective computing and low-latency UI responsiveness.
+NeuroAdapt operates on a high-throughput, asynchronous client-server architecture engineered for sub-second affective computing and low-latency UI responsiveness.
 
 ```mermaid
 flowchart TD
@@ -90,7 +90,7 @@ flowchart TD
 
 ## 4. Mathematical Formulation & Multimodal Fusion Model
 
-EduMotion employs a hybrid affective computing model that fuses raw facial probabilities with ergonomic posture signals.
+NeuroAdapt employs a hybrid affective computing model that fuses raw facial probabilities with ergonomic posture signals.
 
 $$\text{FinalScore}(s) = 0.70 \cdot \mathbf{S}_{\text{facial}}(s) + 0.30 \cdot \mathbf{S}_{\text{learning}}(s), \quad \forall s \in \{\text{engaged}, \text{bored}, \text{confused}, \text{frustrated}\}$$
 
@@ -118,7 +118,7 @@ Posture acts as a strong physiological confirmation signal:
 
 ## 5. The 24-State Adaptation Matrix
 
-EduMotion defines a centralized $4 \times 6$ adaptation matrix providing fine-grained educational interventions:
+NeuroAdapt defines a centralized $4 \times 6$ adaptation matrix providing fine-grained educational interventions:
 
 | Learning State | Detected Posture | UI Theme Accent | Educational Action | Ergonomic Posture Guidance |
 | :--- | :--- | :--- | :--- | :--- |
@@ -184,4 +184,4 @@ To support hundreds of thousands of concurrent learners:
 
 ---
 
-*EduMotion — Reimagining digital education through empathetic, adaptive, and intelligent technology.*
+*NeuroAdapt — Reimagining digital education through empathetic, adaptive, and intelligent technology.*

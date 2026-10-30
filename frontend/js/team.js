@@ -1,5 +1,5 @@
 /**
- * EduMotion - Team Configuration
+ * NeuroAdapt - Team Configuration
  * 
  * All team member names and roles are defined here.
  * Update this file to change team member information without

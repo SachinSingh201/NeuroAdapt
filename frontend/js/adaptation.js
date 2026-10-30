@@ -1,5 +1,5 @@
 /**
- * EduMotion - Adaptation Module
+ * NeuroAdapt - Adaptation Module
  * 
  * Handles UI adaptation based strictly on the 4 supported emotion states:
  * ENGAGED, BORED, CONFUSED, FRUSTRATED

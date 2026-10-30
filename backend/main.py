@@ -53,7 +53,7 @@ emotion_service = EmotionService()
 app = FastAPI(
     title=Config.PROJECT_NAME,
     version=Config.VERSION,
-    description="EduMotion - Emotion-Aware Dynamic UI/UX System",
+    description="NeuroAdapt - Emotion-Aware Dynamic UI/UX System",
 )
 
 # ============================================================
@@ -251,7 +251,7 @@ async def predict_emotion(
         sep = "=" * 65
         print(
             f"\n{sep}"
-            f"\n[EduMotion] Emotion & Learning State Evaluation"
+            f"\n[NeuroAdapt] Emotion & Learning State Evaluation"
             f"\n-----------------------------------------------------------------"
             f"\n  DeepFace Emotion  : {deepface_emotion or 'None'} (Confidence: {int(deepface_conf*100)}%)"
             f"\n  Detected Posture  : {posture} (Confidence: {int(posture_conf*100)}%)"
@@ -359,7 +359,7 @@ async def predict_emotion_base64(
         sep = "=" * 65
         print(
             f"\n{sep}"
-            f"\n[EduMotion] Emotion & Learning State Evaluation"
+            f"\n[NeuroAdapt] Emotion & Learning State Evaluation"
             f"\n-----------------------------------------------------------------"
             f"\n  DeepFace Emotion  : {deepface_emotion or 'None'} (Confidence: {int(deepface_conf*100)}%)"
             f"\n  Detected Posture  : {posture} (Confidence: {int(posture_conf*100)}%)"
